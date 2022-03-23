@@ -7,7 +7,18 @@ import numpy as np
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
 from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification, Trainer, TrainingArguments, RobertaConfig, RobertaTokenizer, RobertaForSequenceClassification, BertTokenizer
 from load_data import *
+import random
+import wandb
 
+
+def seed_everything(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
 
 def klue_re_micro_f1(preds, labels):
     """KLUE-RE micro f1 (except no_relation)"""
@@ -72,7 +83,7 @@ def train():
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   # load dataset
-  train_dataset = load_data("../dataset/train/train.csv")
+  train_dataset = load_data("/opt/ml/dataset/train/train.csv")
   # dev_dataset = load_data("../dataset/train/dev.csv") # validation용 데이터는 따로 만드셔야 합니다.
 
   train_label = label_to_num(train_dataset['label'].values)
@@ -117,7 +128,10 @@ def train():
                                 # `steps`: Evaluate every `eval_steps`.
                                 # `epoch`: Evaluate every end of epoch.
     eval_steps = 500,            # evaluation step.
-    load_best_model_at_end = True 
+    load_best_model_at_end = True,
+    report_to="wandb",  # enable logging to W&B
+    run_name="bert-base"  # name of the W&B run (optional)
+
   )
   trainer = Trainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
@@ -130,8 +144,10 @@ def train():
   # train model
   trainer.train()
   model.save_pretrained('./best_model')
+
 def main():
   train()
 
 if __name__ == '__main__':
+  seed_everything(42) 
   main()
