@@ -3,6 +3,7 @@ import os
 import pandas as pd
 import torch
 
+from sklearn.model_selection import train_test_split
 
 class RE_Dataset(torch.utils.data.Dataset):
   """ Dataset 구성을 위한 class."""
@@ -18,6 +19,11 @@ class RE_Dataset(torch.utils.data.Dataset):
   def __len__(self):
     return len(self.labels)
 
+def dict_label_to_num(x):
+  with open('dict_label_to_num.pkl', 'rb') as f:
+    dict_label_to_num = pickle.load(f)
+  return dict_label_to_num[x]
+
 def preprocessing_dataset(dataset):
   """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
   subject_entity = []
@@ -31,11 +37,15 @@ def preprocessing_dataset(dataset):
   out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':dataset['sentence'],'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
   return out_dataset
 
-def load_data(dataset_dir):
+def load_data(dataset_dir, mode="test"):
   """ csv 파일을 경로에 맡게 불러 옵니다. """
   pd_dataset = pd.read_csv(dataset_dir)
   dataset = preprocessing_dataset(pd_dataset)
-  
+  if mode == "train": # train data load 시 train_set, val_set 반환
+    dataset['label_num'] = dataset['label'].map(lambda x: dict_label_to_num(x))
+    train_set, val_set = train_test_split(dataset, test_size=0.2,
+                                          shuffle=True, stratify=dataset['label_num'])
+    return train_set, val_set
   return dataset
 
 def tokenized_dataset(dataset, tokenizer):
