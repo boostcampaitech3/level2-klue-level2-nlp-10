@@ -7,6 +7,9 @@ import numpy as np
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
 from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification, Trainer, TrainingArguments, RobertaConfig, RobertaTokenizer, RobertaForSequenceClassification, BertTokenizer
 from load_data import *
+import wandb
+
+
 
 
 def klue_re_micro_f1(preds, labels):
@@ -68,7 +71,7 @@ def label_to_num(label):
 def train():
   # load model and tokenizer
   # MODEL_NAME = "bert-base-uncased"
-  MODEL_NAME = "klue/bert-base"
+  MODEL_NAME = "klue/roberta-large" # "klue/bert-base"
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   # load dataset
@@ -104,9 +107,9 @@ def train():
     output_dir='./results',          # output directory
     save_total_limit=5,              # number of total save model.
     save_steps=500,                 # model saving step.
-    num_train_epochs=20,              # total number of training epochs
+    num_train_epochs=5,              # total number of training epochs
     learning_rate=5e-5,               # learning_rate
-    per_device_train_batch_size=16,  # batch size per device during training
+    per_device_train_batch_size=32,  # batch size per device during training
     per_device_eval_batch_size=16,   # batch size for evaluation
     warmup_steps=500,                # number of warmup steps for learning rate scheduler
     weight_decay=0.01,               # strength of weight decay
@@ -131,7 +134,11 @@ def train():
   trainer.train()
   model.save_pretrained('./best_model')
 def main():
+  wandb.init()
+  wandb.run.name = 'namhyun ft'
   train()
+  
 
 if __name__ == '__main__':
   main()
+  

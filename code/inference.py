@@ -9,6 +9,8 @@ import pickle as pickle
 import numpy as np
 import argparse
 from tqdm import tqdm
+import random
+random.seed(10)
 
 def inference(model, tokenized_sent, device):
   """
@@ -65,7 +67,7 @@ def main(args):
   """
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   # load tokenizer
-  Tokenizer_NAME = "klue/bert-base"
+  Tokenizer_NAME = "klue/roberta-large"
   tokenizer = AutoTokenizer.from_pretrained(Tokenizer_NAME)
 
   ## load my model
