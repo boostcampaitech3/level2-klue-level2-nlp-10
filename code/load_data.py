@@ -31,45 +31,45 @@ def preprocessing_dataset(dataset):
   out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':dataset['sentence'],'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
   return out_dataset
 
-# Typerd entity marker(punct) to Only Query
+# Typed entity marker(punct) to Only Query
 def TEMP_preprocessing_dataset(dataset):
   """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
   subject_entity = []
   object_entity = []
   for i,j in zip(dataset['subject_entity'], dataset['object_entity']):
-    S_WORD = i[1:-1].split(',')[0].split(':')[1][2:-1]
-    S_TYPE = i[1:-1].split(',')[-1].split(':')[1][2:-1]    
-    S_TEMP = ' '.join(['@', '*', S_TYPE, '*', S_WORD, '@'])
+    S_WORD = i[1:-1].split(", '")[0].split(':')[1][2:-1]
+    S_TYPE = i[1:-1].split(", '")[-1].split(':')[1][2:-1]    
+    S_TEMP = ' '.join(['@', '+', S_TYPE, '+', S_WORD, '@'])
     subject_entity.append(S_TEMP)
     
-    O_WORD = j[1:-1].split(',')[0].split(':')[1][2:-1]
-    O_TYPE = j[1:-1].split(',')[-1].split(':')[1][2:-1]    
+    O_WORD = j[1:-1].split(", '")[0].split(':')[1][2:-1]
+    O_TYPE = j[1:-1].split(", '")[-1].split(':')[1][2:-1]    
     O_TEMP = ' '.join(['#', '^', O_TYPE, '^', O_WORD, '#'])
     object_entity.append(O_TEMP)
 
   out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':dataset['sentence'],'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
   return out_dataset
 
-# Typerd entity marker(punct) to Query and Sentence
+# Typed entity marker(punct) to Query and Sentence
 def TEMP_preprocessing_dataset_with_sentence(dataset):
   """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
   subject_entity = []
   object_entity = []
   sentence = []
   for i,j,k in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence']):
-    S_WORD = i[1:-1].split(',')[0].split(':')[1][2:-1]
-    S_TYPE = i[1:-1].split(',')[-1].split(':')[1][2:-1]    
-    S_TEMP = ' '.join(['@', '*', S_TYPE, '*', S_WORD, '@'])
+    S_WORD = i[1:-1].split(", '")[0].split(':')[1][2:-1]
+    S_TYPE = i[1:-1].split(", '")[-1].split(':')[1][2:-1]    
+    S_TEMP = ' '.join(['@', '+', S_TYPE, '+', S_WORD, '@'])
     subject_entity.append(S_TEMP)
     
-    O_WORD = j[1:-1].split(',')[0].split(':')[1][2:-1]
-    O_TYPE = j[1:-1].split(',')[-1].split(':')[1][2:-1]    
+    O_WORD = j[1:-1].split(", '")[0].split(':')[1][2:-1]
+    O_TYPE = j[1:-1].split(", '")[-1].split(':')[1][2:-1]  
     O_TEMP = ' '.join(['#', '^', O_TYPE, '^', O_WORD, '#'])
     object_entity.append(O_TEMP)
     
     sentence.append(k.replace(S_WORD, S_TEMP).replace(O_WORD, O_TEMP))
     
-  out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':dataset['sentence'],'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
+  out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':sentence, 'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
   return out_dataset
 
 def load_data(dataset_dir):
@@ -88,7 +88,7 @@ def tokenized_dataset(dataset, tokenizer):
     temp = e01 + '[SEP]' + e02
     concat_entity.append(temp)
    
-  tokenized_sentences = tokenizer(
+  tokenized_sentence = tokenizer(
       concat_entity,
       list(dataset['sentence']),
       return_tensors="pt",
@@ -97,7 +97,7 @@ def tokenized_dataset(dataset, tokenizer):
       max_length=256,
       add_special_tokens=True
       )
-  return tokenized_sentences
+  return tokenized_sentence
 
 def TEMP_tokenized_dataset(dataset, tokenizer):
   """ tokenizer에 따라 sentence를 tokenizing 합니다."""
@@ -106,14 +106,16 @@ def TEMP_tokenized_dataset(dataset, tokenizer):
     temp = ''
     temp = e01 + ' 과 ' + e02 + '의 관계'
     concat_entity.append(temp)
-    
-  tokenized_sentences = tokenizer(
+  
+  tokenized_sentence = tokenizer(
       concat_entity,
       list(dataset['sentence']),
       return_tensors="pt",
       padding=True,
       truncation=True,
-      max_length=128,
-      add_special_tokens=True
+      max_length=256,
+      add_special_tokens=True,
+      # return_token_type_ids = False
       )
-  return tokenized_sentences
+  
+  return tokenized_sentence
