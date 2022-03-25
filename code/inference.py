@@ -4,11 +4,11 @@ from load_data import *
 import pandas as pd
 import torch
 import torch.nn.functional as F
-
 import pickle as pickle
 import numpy as np
 import argparse
 from tqdm import tqdm
+
 
 def inference(model, tokenized_sent, device):
   """
@@ -56,7 +56,8 @@ def load_test_dataset(dataset_dir, tokenizer):
   test_dataset = load_data(dataset_dir)
   test_label = list(map(int,test_dataset['label'].values))
   # tokenizing dataset
-  tokenized_test = tokenized_dataset(test_dataset, tokenizer)
+  # tokenized_test = tokenized_dataset(test_dataset, tokenizer)
+  tokenized_test = TEMP_tokenized_dataset(test_dataset, tokenizer)
   return test_dataset['id'], tokenized_test, test_label
 
 def main(args):
@@ -64,14 +65,16 @@ def main(args):
     주어진 dataset csv 파일과 같은 형태일 경우 inference 가능한 코드입니다.
   """
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+  # device = torch.device('cpu')
   # load tokenizer
-  Tokenizer_NAME = "klue/bert-base"
+  Tokenizer_NAME = "klue/roberta-large"
   tokenizer = AutoTokenizer.from_pretrained(Tokenizer_NAME)
 
   ## load my model
   MODEL_NAME = args.model_dir # model dir.
   model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)
   model.parameters
+  print(device)
   model.to(device)
 
   ## load test datset
