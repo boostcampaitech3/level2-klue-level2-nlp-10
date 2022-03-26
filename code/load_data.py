@@ -77,7 +77,7 @@ def load_data(dataset_dir):
   pd_dataset = pd.read_csv(dataset_dir)
   # dataset = preprocessing_dataset(pd_dataset)
   # dataset = TEMP_preprocessing_dataset(pd_dataset)
-  dataset = TEMP_preprocessing_dataset_with_sentence(pd_dataset)
+  dataset = TEMP_preprocessing_dataset(pd_dataset)
   return dataset
 
 def tokenized_dataset(dataset, tokenizer):
@@ -113,7 +113,7 @@ def TEMP_tokenized_dataset(dataset, tokenizer):
       return_tensors="pt",
       padding=True,
       truncation=True,
-      max_length=256,
+      max_length=128,
       add_special_tokens=True,
       # return_token_type_ids = False
       )
