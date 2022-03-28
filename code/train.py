@@ -52,11 +52,10 @@ class Model_BiGRU(nn.Module):
     output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
     # (batch, max_len, hidden_dim)
 
-    hidden, (last_hidden, last_cell) = self.gru(output)
+    hidden, last_hidden = self.gru(output)
     output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
     # hidden : (batch, max_len, hidden_dim * 2)
     # last_hidden : (2, batch, hidden_dim)
-    # last_cell : (2, batch, hidden_dim)
     # output : (batch, hidden_dim * 2)
 
     logits = self.fc(output)
@@ -190,8 +189,8 @@ def train():
   # model_config =  AutoConfig.from_pretrained(MODEL_NAME)
   # model_config.num_labels = 30
   # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config = model_config)
-  model =  Model_BiLSTM(MODEL_NAME)
-  # model =  Model_BiGRU(MODEL_NAME)
+  # model =  Model_BiLSTM(MODEL_NAME)
+  model =  Model_BiGRU(MODEL_NAME)
   # model =  Model_FC(MODEL_NAME)
   
   model.to(device)

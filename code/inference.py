@@ -73,7 +73,9 @@ def main(args):
 
   ## load my model
   # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
-  model = Model_BiLSTM(MODEL_NAME)
+  # model = Model_BiLSTM(MODEL_NAME)
+  model = Model_BiGRU(MODEL_NAME)
+  # model = Model_FC(MODEL_NAME)
   state_dict = torch.load(os.path.join('./best_model', 'pytorch_model.bin'))
   model.load_state_dict(state_dict)
   model.parameters
