@@ -10,20 +10,99 @@ from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassifi
 from transformers import AutoModel
 from load_data import *
 import wandb
-
 import torch.nn as nn
-# class Model(nn.Module):
-#   def __init__(self, MODEL_NAME):
-#     super().__init__()
-#     self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-#     self.model_config.num_labels = 30
-#     self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
-#     self.hidden_dim = self.model_config.hidden_size
-#     self.fc = nn.Linear()
+
+# BiLSTM
+class Model_BiLSTM(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.lstm= nn.LSTM(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
+    self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
   
-#   def forward(self, input_ids, attention_mask):
-#     output = self.model(input_ids=input_ids, attention_mask=attention_mask)[0]
-#     return
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state # (batch, max_len, hidden_dim)
+
+    hidden, (last_hidden, last_cell) = self.lstm(output)
+    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
+    # hidden : (batch, max_len, hidden_dim * 2)
+    # last_hidden : (2, batch, hidden_dim)
+    # last_cell : (2, batch, hidden_dim)
+    # output : (batch, hidden_dim * 2)
+
+    logits = self.fc(output) # (batch, num_labels)
+
+    return {'logits' : logits}
+
+# BiGRU
+class Model_BiGRU(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.gru= nn.GRU(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
+    self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    # (batch, max_len, hidden_dim)
+
+    hidden, (last_hidden, last_cell) = self.gru(output)
+    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
+    # hidden : (batch, max_len, hidden_dim * 2)
+    # last_hidden : (2, batch, hidden_dim)
+    # last_cell : (2, batch, hidden_dim)
+    # output : (batch, hidden_dim * 2)
+
+    logits = self.fc(output)
+    # logits : (batch, num_labels)
+
+    return {'logits' : logits}
+
+# FC
+class Model_FC(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.fc = nn.Linear(self.hidden_dim * 128, self.model_config.num_labels)
+    self.relu = nn.ReLU()
+    self.softmax = nn.Softmax(dim=1)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state # (batch, max_len, hidden_dim)
+    output = output.view(output.shape[0], -1) # (batch, max_len * hidden_dim)
+    output = self.fc(output) # (batch, num_labels)
+    output = self.relu(output)
+    logits = self.softmax(output)
+    
+    return {'logits' : logits}
+
+class CustomTrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    def compute_loss(self, model, inputs, return_outputs= False):
+        device= torch.device('cuda:0' if torch.cuda.is_available else 'cpu:0')
+        labels= inputs.pop('labels')
+        # forward pass
+        outputs= model(**inputs)
+        
+        # 인덱스에 맞춰서 과거 ouput을 다 저장
+        if self.args.past_index >=0:
+            self._past= outputs[self.args.past_index]
+            
+        # compute custom loss (suppose one has 3 labels with different weights)
+        custom_loss= torch.nn.CrossEntropyLoss().to(device)
+        loss= custom_loss(outputs['logits'], labels)    
+        return (loss, outputs) if return_outputs else loss
 
 
 def klue_re_micro_f1(preds, labels):
@@ -66,7 +145,7 @@ def compute_metrics(pred):
   f1 = klue_re_micro_f1(preds, labels)
   auprc = klue_re_auprc(probs, labels)
   acc = accuracy_score(labels, preds) # 리더보드 평가에는 포함되지 않습니다.
-  wandb.log({'micro f1 score': f1})
+  # wandb.log({'micro f1 score': f1})
   return {
       'micro f1 score': f1,
       'auprc' : auprc,
@@ -108,12 +187,13 @@ def train():
   # device = torch.device('cpu') 
   print(device)
   
-  model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-  model_config.num_labels = 30
-  model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config = model_config)
-  # model =  Model(MODEL_NAME)
+  # model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+  # model_config.num_labels = 30
+  # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config = model_config)
+  model =  Model_BiLSTM(MODEL_NAME)
+  # model =  Model_BiGRU(MODEL_NAME)
+  # model =  Model_FC(MODEL_NAME)
   
-  model.parameters
   model.to(device)
   
   # 사용한 option 외에도 다양한 option들이 있습니다.
@@ -122,7 +202,7 @@ def train():
     output_dir='./results',          # output directory
     save_strategy = 'epoch',
     save_total_limit=1,              # number of total save model.
-    save_steps=500,                 # model saving step.
+    # save_steps=500,                 # model saving step.
     num_train_epochs=5,              # total number of training epochs
     learning_rate=3e-5,               # learning_rate
     per_device_train_batch_size=64,  # batch size per device during training
@@ -134,16 +214,24 @@ def train():
     # lr_scheduler_type = 'constant_with_warmup',
     logging_dir='./logs',            # directory for storing logs
     logging_steps=100,              # log saving step.
-    evaluation_strategy='no', # evaluation strategy to adopt during training
+    evaluation_strategy='epoch', # evaluation strategy to adopt during training
                                 # `no`: No evaluation during training.
                                 # `steps`: Evaluate every `eval_steps`.
                                 # `epoch`: Evaluate every end of epoch.
-    eval_steps = 500,            # evaluation step.
+    # eval_steps = 500,            # evaluation step.
     load_best_model_at_end = True,
-    report_to = 'wandb',
-    run_name = "Typerd entity marker(punct) to Query and Sentence"
+    # report_to = 'wandb',
+    # run_name = "Typerd entity marker(punct) to Query and Sentence"
   )
-  trainer = Trainer(
+  # trainer = Trainer(
+  #   model=model,                         # the instantiated 🤗 Transformers model to be trained
+  #   args=training_args,                  # training arguments, defined above
+  #   train_dataset=RE_train_dataset,         # training dataset
+  #   eval_dataset=RE_train_dataset,             # evaluation dataset
+  #   compute_metrics=compute_metrics         # define metrics function
+  # )
+
+  trainer = CustomTrainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
     args=training_args,                  # training arguments, defined above
     train_dataset=RE_train_dataset,         # training dataset
@@ -153,11 +241,13 @@ def train():
 
   # train model
   trainer.train()
-  model.save_pretrained('./best_model')
+  # model.save_pretrained('./best_model')
+  torch.save(model.state_dict(), os.path.join('./best_model', 'pytorch_model.bin'))
 
 def main():
   train()
 
 if __name__ == '__main__':
-  wandb.init(project="KLUE")
+  # wandb.init(project="KLUE")
+  os.environ["WANDB_DISABLED"] = "true"
   main()

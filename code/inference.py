@@ -8,6 +8,7 @@ import pickle as pickle
 import numpy as np
 import argparse
 from tqdm import tqdm
+from train import *
 
 
 def inference(model, tokenized_sent, device):
@@ -24,9 +25,9 @@ def inference(model, tokenized_sent, device):
       outputs = model(
           input_ids=data['input_ids'].to(device),
           attention_mask=data['attention_mask'].to(device),
-          token_type_ids=data['token_type_ids'].to(device)
+          # token_type_ids=data['token_type_ids'].to(device)
           )
-    logits = outputs[0]
+    logits = outputs['logits']
     prob = F.softmax(logits, dim=-1).detach().cpu().numpy()
     logits = logits.detach().cpu().numpy()
     result = np.argmax(logits, axis=-1)
@@ -67,12 +68,14 @@ def main(args):
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   # device = torch.device('cpu')
   # load tokenizer
-  Tokenizer_NAME = "klue/roberta-large"
-  tokenizer = AutoTokenizer.from_pretrained(Tokenizer_NAME)
+  MODEL_NAME = "klue/roberta-large"
+  tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   ## load my model
-  MODEL_NAME = args.model_dir # model dir.
-  model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)
+  # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+  model = Model_BiLSTM(MODEL_NAME)
+  state_dict = torch.load(os.path.join('./best_model', 'pytorch_model.bin'))
+  model.load_state_dict(state_dict)
   model.parameters
   print(device)
   model.to(device)
@@ -100,6 +103,5 @@ if __name__ == '__main__':
   # model dir
   parser.add_argument('--model_dir', type=str, default="./best_model")
   args = parser.parse_args()
-  print(args)
   main(args)
   
