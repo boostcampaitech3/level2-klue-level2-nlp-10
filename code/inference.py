@@ -4,11 +4,12 @@ from load_data import *
 import pandas as pd
 import torch
 import torch.nn.functional as F
-
 import pickle as pickle
 import numpy as np
 import argparse
 from tqdm import tqdm
+from train import *
+
 
 def inference(model, tokenized_sent, device):
   """
@@ -24,11 +25,12 @@ def inference(model, tokenized_sent, device):
       outputs = model(
           input_ids=data['input_ids'].to(device),
           attention_mask=data['attention_mask'].to(device),
-          token_type_ids=data['token_type_ids'].to(device)
+          # token_type_ids=data['token_type_ids'].to(device)
           )
-    logits = outputs[0]
-    prob = F.softmax(logits, dim=-1).detach().cpu().numpy()
+    logits = outputs['logits']
+    #prob = F.softmax(logits, dim=-1).detach().cpu().numpy()
     logits = logits.detach().cpu().numpy()
+    prob = logits
     result = np.argmax(logits, axis=-1)
 
     output_pred.append(result)
@@ -56,7 +58,8 @@ def load_test_dataset(dataset_dir, tokenizer):
   test_dataset = load_data(dataset_dir)
   test_label = list(map(int,test_dataset['label'].values))
   # tokenizing dataset
-  tokenized_test = tokenized_dataset(test_dataset, tokenizer)
+  # tokenized_test = tokenized_dataset(test_dataset, tokenizer)
+  tokenized_test = TEMP_tokenized_dataset(test_dataset, tokenizer)
   return test_dataset['id'], tokenized_test, test_label
 
 def main(args):
@@ -64,18 +67,24 @@ def main(args):
     주어진 dataset csv 파일과 같은 형태일 경우 inference 가능한 코드입니다.
   """
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+  # device = torch.device('cpu')
   # load tokenizer
-  Tokenizer_NAME = "klue/bert-base"
-  tokenizer = AutoTokenizer.from_pretrained(Tokenizer_NAME)
+  MODEL_NAME = "klue/roberta-large"
+  tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   ## load my model
-  MODEL_NAME = args.model_dir # model dir.
-  model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)
+  # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+  # model = Model_BiLSTM(MODEL_NAME)
+  model = Model_BiGRU(MODEL_NAME)
+  # model = Model_FC(MODEL_NAME)
+  state_dict = torch.load(os.path.join('./best_model', 'pytorch_model.bin'))
+  model.load_state_dict(state_dict)
   model.parameters
+  print(device)
   model.to(device)
 
   ## load test datset
-  test_dataset_dir = "../dataset/test/test_data.csv"
+  test_dataset_dir = "/opt/ml/dataset/test/test_data.csv"
   test_id, test_dataset, test_label = load_test_dataset(test_dataset_dir, tokenizer)
   Re_test_dataset = RE_Dataset(test_dataset ,test_label)
 
@@ -97,6 +106,4 @@ if __name__ == '__main__':
   # model dir
   parser.add_argument('--model_dir', type=str, default="./best_model")
   args = parser.parse_args()
-  print(args)
   main(args)
-  

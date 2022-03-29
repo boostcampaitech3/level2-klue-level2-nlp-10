@@ -5,10 +5,93 @@ import torch
 import sklearn
 import numpy as np
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
-from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification, Trainer, TrainingArguments, RobertaConfig, RobertaTokenizer, RobertaForSequenceClassification, BertTokenizer
+from transformers import AutoModel, AutoTokenizer, AutoConfig, AutoModelForSequenceClassification, Trainer, TrainingArguments, RobertaConfig, RobertaTokenizer, RobertaForSequenceClassification, BertTokenizer
 from load_data import *
 import wandb
 from loss import *
+import random
+from sklearn.model_selection import StratifiedKFold
+
+def seed_everything(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministric = True
+    torch.backends.cudnn.benchmark = True
+
+# BiLSTM
+class Model_BiLSTM(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.lstm= nn.LSTM(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
+    self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state # (batch, max_len, hidden_dim)
+
+    hidden, (last_hidden, last_cell) = self.lstm(output)
+    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
+    # hidden : (batch, max_len, hidden_dim * 2)
+    # last_hidden : (2, batch, hidden_dim)
+    # last_cell : (2, batch, hidden_dim)
+    # output : (batch, hidden_dim * 2)
+
+    logits = self.fc(output) # (batch, num_labels)
+
+    return {'logits' : logits}
+
+# BiGRU
+class Model_BiGRU(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.gru= nn.GRU(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
+    self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    # (batch, max_len, hidden_dim)
+
+    hidden, last_hidden = self.gru(output)
+    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
+    # hidden : (batch, max_len, hidden_dim * 2)
+    # last_hidden : (2, batch, hidden_dim)
+    # output : (batch, hidden_dim * 2)
+
+    logits = self.fc(output)
+    # logits : (batch, num_labels)
+
+    return {'logits' : logits}
+
+# FC
+class Model_FC(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.fc = nn.Linear(self.hidden_dim * 128, self.model_config.num_labels)
+    self.relu = nn.ReLU()
+    self.softmax = nn.Softmax(dim=1)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state # (batch, max_len, hidden_dim)
+    output = output.view(output.shape[0], -1) # (batch, max_len * hidden_dim)
+    output = self.fc(output) # (batch, num_labels)
+    output = self.relu(output)
+    logits = self.softmax(output)
+    
+    return {'logits' : logits}
 
 class Custom_Trainer(Trainer) :
     def __init__(self,loss_name, *args, **kwargs) :
@@ -29,7 +112,7 @@ class Custom_Trainer(Trainer) :
             loss= custom_loss(outputs['logits'], labels)
         
         elif self.loss_name == 'FOCAL_LOSS':
-            custom_loss = FocalLoss().to(device)
+            custom_loss = FocalLoss(gamma = 1).to(device)
             loss = custom_loss(outputs['logits'],labels)
         return (loss, outputs) if return_outputs else loss
 
@@ -93,18 +176,18 @@ def label_to_num(label):
 def train():
   # load model and tokenizer
   # MODEL_NAME = "bert-base-uncased"
-  #MODEL_NAME = "monologg/koelectra-base-v3-discriminator"
   MODEL_NAME = "klue/roberta-large"
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   # load dataset
-  train_dataset = load_data("/opt/ml/dataset/train/train.csv")
+  train_dataset = load_data("../dataset/train/train.csv")
   # dev_dataset = load_data("../dataset/train/dev.csv") # validation용 데이터는 따로 만드셔야 합니다.
 
   train_label = label_to_num(train_dataset['label'].values)
   # dev_label = label_to_num(dev_dataset['label'].values)
 
   # tokenizing dataset
+  # tokenized_train = tokenized_dataset(train_dataset, tokenizer)
   tokenized_train = TEMP_tokenized_dataset(train_dataset, tokenizer)
   # tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
 
@@ -113,15 +196,16 @@ def train():
   # RE_dev_dataset = RE_Dataset(tokenized_dev, dev_label)
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
+  # device = torch.device('cpu') 
   print(device)
-  # setting model hyperparameter
-  model_config = AutoConfig.from_pretrained(MODEL_NAME)
-  model_config.num_labels = 30
-
-  model =  AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config)
-  print(model.config)
-  model.parameters
+  
+  # model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+  # model_config.num_labels = 30
+  # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config = model_config)
+  # model =  Model_BiLSTM(MODEL_NAME)
+  model =  Model_BiGRU(MODEL_NAME)
+  # model =  Model_FC(MODEL_NAME)
+  
   model.to(device)
   
   # 사용한 option 외에도 다양한 option들이 있습니다.
@@ -130,14 +214,14 @@ def train():
     output_dir='./results',          # output directory
     save_strategy = 'epoch',
     save_total_limit=1,              # number of total save model.
-    save_steps=500,                 # model saving step.
+    # save_steps=500,                 # model saving step.
     num_train_epochs=5,              # total number of training epochs
     learning_rate=3e-5,               # learning_rate
     per_device_train_batch_size=64,  # batch size per device during training
     per_device_eval_batch_size=16,   # batch size for evaluation
     # warmup_steps=500,                # number of warmup steps for learning rate scheduler
     warmup_ratio = 0.1,
-    weight_decay=0.01,               # strength of weight decay
+    # weight_decay=0.01,               # strength of weight decay
     # label_smoothing_factor=0.1,
     # lr_scheduler_type = 'constant_with_warmup',
     logging_dir='./logs',            # directory for storing logs
@@ -146,26 +230,36 @@ def train():
                                 # `no`: No evaluation during training.
                                 # `steps`: Evaluate every `eval_steps`.
                                 # `epoch`: Evaluate every end of epoch.
-    eval_steps = 500,            # evaluation step.
+    # eval_steps = 500,            # evaluation step.
     load_best_model_at_end = True,
-    report_to = 'wandb')
-
+    # report_to = 'wandb',
+    # run_name = "Typerd entity marker(punct) to Query and Sentence"
+  )
+  # trainer = Trainer(
+  #   model=model,                         # the instantiated 🤗 Transformers model to be trained
+  #   args=training_args,                  # training arguments, defined above
+  #   train_dataset=RE_train_dataset,         # training dataset
+  #   eval_dataset=RE_train_dataset,             # evaluation dataset
+  #   compute_metrics=compute_metrics         # define metrics function
+  # )
 
   trainer = Custom_Trainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
     args=training_args,                  # training arguments, defined above
     train_dataset=RE_train_dataset,         # training dataset
     eval_dataset=RE_train_dataset,             # evaluation dataset
-    compute_metrics=compute_metrics,      # define metrics function
-    loss_name = 'FOCAL_LOSS'
+    compute_metrics=compute_metrics         # define metrics function
   )
 
   # train model
   trainer.train()
-  model.save_pretrained('./best_model')
+  # model.save_pretrained('./best_model')
+  torch.save(model.state_dict(), os.path.join('./best_model', 'pytorch_model.bin'))
+
 def main():
   train()
 
 if __name__ == '__main__':
-  wandb.init(project="huggingface",name = "Typerd entity marker(punct) with Focal Loss")
+  # wandb.init(project="KLUE")
+  os.environ["WANDB_DISABLED"] = "true"
   main()
