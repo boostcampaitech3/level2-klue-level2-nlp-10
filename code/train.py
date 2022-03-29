@@ -167,7 +167,7 @@ def train():
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   # load dataset
-  train_dataset = load_data("../dataset/train/train.csv")
+  train_dataset = load_data("/opt/ml/dataset/train/train.csv")
   # dev_dataset = load_data("../dataset/train/dev.csv") # validation용 데이터는 따로 만드셔야 합니다.
 
   train_label = label_to_num(train_dataset['label'].values)
@@ -219,8 +219,8 @@ def train():
                                 # `epoch`: Evaluate every end of epoch.
     # eval_steps = 500,            # evaluation step.
     load_best_model_at_end = True,
-    # report_to = 'wandb',
-    # run_name = "Typerd entity marker(punct) to Query and Sentence"
+    report_to = 'wandb',
+    run_name = "EDA Experiment"
   )
   # trainer = Trainer(
   #   model=model,                         # the instantiated 🤗 Transformers model to be trained
@@ -247,6 +247,6 @@ def main():
   train()
 
 if __name__ == '__main__':
-  # wandb.init(project="KLUE")
-  os.environ["WANDB_DISABLED"] = "true"
+  wandb.init(project="KLUE")
+  # os.environ["WANDB_DISABLED"] = "true"
   main()
