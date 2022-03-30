@@ -11,6 +11,16 @@ from transformers import AutoModel
 from load_data import *
 import wandb
 import torch.nn as nn
+import random
+
+def seed_everything(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
 
 # BiLSTM
 class Model_BiLSTM(nn.Module):
@@ -205,7 +215,7 @@ def train():
     num_train_epochs=5,              # total number of training epochs
     learning_rate=3e-5,               # learning_rate
     per_device_train_batch_size=64,  # batch size per device during training
-    per_device_eval_batch_size=16,   # batch size for evaluation
+    per_device_eval_batch_size=64,   # batch size for evaluation
     # warmup_steps=500,                # number of warmup steps for learning rate scheduler
     warmup_ratio = 0.1,
     # weight_decay=0.01,               # strength of weight decay
@@ -220,7 +230,7 @@ def train():
     # eval_steps = 500,            # evaluation step.
     load_best_model_at_end = True,
     report_to = 'wandb',
-    run_name = "EDA Experiment"
+    run_name = "EDA Experiment:2"
   )
   # trainer = Trainer(
   #   model=model,                         # the instantiated 🤗 Transformers model to be trained
@@ -248,5 +258,7 @@ def main():
 
 if __name__ == '__main__':
   wandb.init(project="KLUE")
+  wandb.run.name = 'EDA Experiment:2'
   # os.environ["WANDB_DISABLED"] = "true"
+  seed_everything(42) 
   main()

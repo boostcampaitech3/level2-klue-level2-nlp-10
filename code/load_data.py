@@ -1,8 +1,8 @@
 import pickle as pickle
 import os
 import pandas as pd
+from git.code.df_edit import better_df
 import torch
-from csv_edit import *
 
 
 class RE_Dataset(torch.utils.data.Dataset):
@@ -35,19 +35,6 @@ def preprocessing_dataset(dataset):
 # Typed entity marker(punct) to Only Query
 def TEMP_preprocessing_dataset(dataset):
   """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
-  # subject_entity = []
-  # object_entity = []
-  # for i,j in zip(dataset['subject_entity'], dataset['object_entity']):
-  #   S_WORD = i[1:-1].split(", '")[0].split(':')[1][2:-1]
-  #   S_TYPE = i[1:-1].split(", '")[-1].split(':')[1][2:-1]    
-  #   S_TEMP = ' '.join(['@', '+', S_TYPE, '+', S_WORD, '@'])
-  #   subject_entity.append(S_TEMP)
-    
-  #   O_WORD = j[1:-1].split(", '")[0].split(':')[1][2:-1]
-  #   O_TYPE = j[1:-1].split(", '")[-1].split(':')[1][2:-1]    
-  #   O_TEMP = ' '.join(['#', '^', O_TYPE, '^', O_WORD, '#'])
-  #   object_entity.append(O_TEMP)
-
   subject_entity = []
   object_entity = []
   for S_WORD,S_TYPE,O_WORD,O_TYPE in zip(dataset['subj_word'], dataset['subj_type'], dataset['obj_word'], dataset['obj_type']): 
@@ -64,22 +51,6 @@ def TEMP_preprocessing_dataset(dataset):
 # Typed entity marker(punct) to Query and Sentence
 def TEMP_preprocessing_dataset_with_sentence(dataset):
   """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
-  # subject_entity = []
-  # object_entity = []
-  # sentence = []
-  # for i,j,k in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence']):
-  #   S_WORD = i[1:-1].split(", '")[0].split(':')[1][2:-1]
-  #   S_TYPE = i[1:-1].split(", '")[-1].split(':')[1][2:-1]    
-  #   S_TEMP = ' '.join(['@', '+', S_TYPE, '+', S_WORD, '@'])
-  #   subject_entity.append(S_TEMP)
-    
-  #   O_WORD = j[1:-1].split(", '")[0].split(':')[1][2:-1]
-  #   O_TYPE = j[1:-1].split(", '")[-1].split(':')[1][2:-1]  
-  #   O_TEMP = ' '.join(['#', '^', O_TYPE, '^', O_WORD, '#'])
-  #   object_entity.append(O_TEMP)
-    
-  #   sentence.append(k.replace(S_WORD, S_TEMP).replace(O_WORD, O_TEMP))
-
   subject_entity = []
   object_entity = []
   sentence = []
@@ -93,28 +64,53 @@ def TEMP_preprocessing_dataset_with_sentence(dataset):
 
     sentence.append(SEN.replace(S_WORD, S_TEMP).replace(O_WORD, O_TEMP))
 
+  out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':sentence, 'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
+  return out_dataset
 
+def TEMP_preprocessing_dataset_with_sentence_origin(dataset):
+  """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
+  subject_entity = []
+  object_entity = []
+  sentence = []
+  for i,j,k in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence']):
+    S_WORD = i[1:-1].split(", '")[0].split(':')[1][2:-1]
+    S_TYPE = i[1:-1].split(", '")[-1].split(':')[1][2:-1]    
+    S_TEMP = ' '.join(['@', '+', S_TYPE, '+', S_WORD, '@'])
+    subject_entity.append(S_TEMP)
     
+    O_WORD = j[1:-1].split(", '")[0].split(':')[1][2:-1]
+    O_TYPE = j[1:-1].split(", '")[-1].split(':')[1][2:-1]  
+    O_TEMP = ' '.join(['#', '^', O_TYPE, '^', O_WORD, '#'])
+    object_entity.append(O_TEMP)
+    
+    sentence.append(k.replace(S_WORD, S_TEMP).replace(O_WORD, O_TEMP))
+
   out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':sentence, 'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
   return out_dataset
 
 def load_data(dataset_dir):
   """ csv 파일을 경로에 맡게 불러 옵니다. """
   pd_dataset = pd.read_csv(dataset_dir)
-  pd_dataset = edit_func1(pd_dataset)
+  pd_dataset = better_df(pd_dataset)
   # dataset = preprocessing_dataset(pd_dataset)
   dataset = TEMP_preprocessing_dataset_with_sentence(pd_dataset)
   # dataset = TEMP_preprocessing_dataset(pd_dataset)
+  return dataset
+
+def load_data_origin(dataset_dir):
+  """ csv 파일을 경로에 맡게 불러 옵니다. """
+  pd_dataset = pd.read_csv(dataset_dir)
+  # dataset = preprocessing_dataset(pd_dataset)
+  dataset = TEMP_preprocessing_dataset_with_sentence_origin(pd_dataset)
   # dataset = TEMP_preprocessing_dataset(pd_dataset)
   return dataset
 
 def load_data_test(dataset_dir):
   """ csv 파일을 경로에 맡게 불러 옵니다. """
   pd_dataset = pd.read_csv(dataset_dir)
-  pd_dataset = edit_func2(pd_dataset)
+  pd_dataset = better_df(pd_dataset)
   # dataset = preprocessing_dataset(pd_dataset)
   dataset = TEMP_preprocessing_dataset_with_sentence(pd_dataset)
-  # dataset = TEMP_preprocessing_dataset(pd_dataset)
   # dataset = TEMP_preprocessing_dataset(pd_dataset)
   return dataset
 
