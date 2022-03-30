@@ -60,7 +60,7 @@ def compute_metrics(pred):
   f1 = klue_re_micro_f1(preds, labels)
   auprc = klue_re_auprc(probs, labels)
   acc = accuracy_score(labels, preds) # 리더보드 평가에는 포함되지 않습니다.
-
+  wandb.log({'micro f1 score': f1})
   return {
       'micro f1 score': f1,
       'auprc' : auprc,
@@ -79,23 +79,23 @@ def label_to_num(label):
 def train():
   # load model and tokenizer
   # MODEL_NAME = "bert-base-uncased"
-  MODEL_NAME = "klue/bert-base"
+  MODEL_NAME = "klue/roberta-large" # "klue/bert-base"
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   # load dataset
-  train_dataset, dev_dataset = load_data("/opt/ml/dataset/train/train.csv", mode="train")
+  train_dataset = load_data("/opt/ml/dataset/train/train.csv", mode="train")
   # dev_dataset = load_data("../dataset/train/dev.csv") # validation용 데이터는 따로 만드셔야 합니다.
 
   train_label = label_to_num(train_dataset['label'].values)
-  dev_label = label_to_num(dev_dataset['label'].values)
+  # dev_label = label_to_num(dev_dataset['label'].values)
 
   # tokenizing dataset
   tokenized_train = tokenized_dataset(train_dataset, tokenizer)
-  tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
+  # tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
 
   # make dataset for pytorch.
   RE_train_dataset = RE_Dataset(tokenized_train, train_label)
-  RE_dev_dataset = RE_Dataset(tokenized_dev, dev_label)
+  # RE_dev_dataset = RE_Dataset(tokenized_dev, dev_label)
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -116,11 +116,12 @@ def train():
     save_total_limit=5,              # number of total save model.
     save_strategy='epoch',
     save_steps=1,                 # model saving step.
-    num_train_epochs=20,              # total number of training epochs
+    num_train_epochs=5,              # total number of training epochs
     learning_rate=5e-5,               # learning_rate
     per_device_train_batch_size=64,  # batch size per device during training
     per_device_eval_batch_size=64,   # batch size for evaluation
-    warmup_ratio=10,                # number of warmup steps for learning rate scheduler
+    warmup_ratio=0.1,                # number of warmup steps for learning rate scheduler
+    # warmup_step=400
     weight_decay=0.01,               # strength of weight decay
     logging_dir='./logs',            # directory for storing logs
     logging_steps=100,              # log saving step.
@@ -130,17 +131,18 @@ def train():
                                 # `epoch`: Evaluate every end of epoch.
     eval_steps = 1,            # evaluation step.
     load_best_model_at_end = True,
+    metric_for_best_model = 'micro f1 score',
     report_to="wandb",  # enable logging to W&B
-    run_name="bert-base-val"  # name of the W&B run (optional)
+    run_name="roberta-large-FromTo@#-bs64-all-aug-max128"  # name of the W&B run (optional)
 
   )
   trainer = Trainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
     args=training_args,                  # training arguments, defined above
     train_dataset=RE_train_dataset,         # training dataset
-    eval_dataset=RE_dev_dataset,             # evaluation dataset
+    eval_dataset=RE_train_dataset,             # evaluation dataset
     compute_metrics=compute_metrics,         # define metrics function
-    callbacks = [EarlyStoppingCallback(early_stopping_patience=2)]
+    # callbacks = [EarlyStoppingCallback(early_stopping_patience=2)]
   )
 
   # train model
