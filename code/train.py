@@ -6,36 +6,21 @@ import torch
 import sklearn
 import numpy as np
 from sklearn.metrics import accuracy_score
-from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification, Trainer, TrainingArguments
+from transformers import AutoTokenizer, AutoConfig, Trainer, TrainingArguments
 from transformers import AutoModel
 from load_data import *
-import wandb
+# import wandb
 import torch.nn as nn
+import random
 
-# BiLSTM
-class Model_BiLSTM(nn.Module):
-  def __init__(self, MODEL_NAME):
-    super().__init__()
-    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-    self.model_config.num_labels = 30
-    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
-    self.hidden_dim = self.model_config.hidden_size
-    self.lstm= nn.LSTM(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
-    self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
-  
-  def forward(self, input_ids, attention_mask):
-    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state # (batch, max_len, hidden_dim)
-
-    hidden, (last_hidden, last_cell) = self.lstm(output)
-    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
-    # hidden : (batch, max_len, hidden_dim * 2)
-    # last_hidden : (2, batch, hidden_dim)
-    # last_cell : (2, batch, hidden_dim)
-    # output : (batch, hidden_dim * 2)
-
-    logits = self.fc(output) # (batch, num_labels)
-
-    return {'logits' : logits}
+# def seed_everything(seed):
+#     torch.manual_seed(seed)
+#     torch.cuda.manual_seed(seed)
+#     torch.cuda.manual_seed_all(seed)  # if use multi-GPU
+#     torch.backends.cudnn.deterministic = True
+#     torch.backends.cudnn.benchmark = False
+#     np.random.seed(seed)
+#     random.seed(seed)
 
 # BiGRU
 class Model_BiGRU(nn.Module):
@@ -61,27 +46,6 @@ class Model_BiGRU(nn.Module):
     logits = self.fc(output)
     # logits : (batch, num_labels)
 
-    return {'logits' : logits}
-
-# FC
-class Model_FC(nn.Module):
-  def __init__(self, MODEL_NAME):
-    super().__init__()
-    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-    self.model_config.num_labels = 30
-    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
-    self.hidden_dim = self.model_config.hidden_size
-    self.fc = nn.Linear(self.hidden_dim * 128, self.model_config.num_labels)
-    self.relu = nn.ReLU()
-    self.softmax = nn.Softmax(dim=1)
-  
-  def forward(self, input_ids, attention_mask):
-    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state # (batch, max_len, hidden_dim)
-    output = output.view(output.shape[0], -1) # (batch, max_len * hidden_dim)
-    output = self.fc(output) # (batch, num_labels)
-    output = self.relu(output)
-    logits = self.softmax(output)
-    
     return {'logits' : logits}
 
 class CustomTrainer(Trainer):
@@ -125,7 +89,6 @@ def klue_re_micro_f1(preds, labels):
 def klue_re_auprc(probs, labels):
     """KLUE-RE AUPRC (with no_relation)"""
     labels = np.eye(30)[labels]
-
     score = np.zeros((30,))
     for c in range(30):
         targets_c = labels.take([c], axis=1).ravel()
@@ -165,7 +128,8 @@ def train():
   # MODEL_NAME = "bert-base-uncased"
   MODEL_NAME = "klue/roberta-large"
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-
+  added_token_num = tokenizer.add_special_tokens({"additional_special_tokens":["[LOC]", "[DAT]", "[NOH]", "[PER]", "[ORG]", "[POH]"]})
+  
   # load dataset
   train_dataset = load_data("../dataset/train/train.csv")
   # dev_dataset = load_data("../dataset/train/dev.csv") # validation용 데이터는 따로 만드셔야 합니다.
@@ -174,61 +138,40 @@ def train():
   # dev_label = label_to_num(dev_dataset['label'].values)
 
   # tokenizing dataset
-  # tokenized_train = tokenized_dataset(train_dataset, tokenizer)
-  tokenized_train = TEMP_tokenized_dataset(train_dataset, tokenizer)
-  # tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
+  tokenized_train = tokenized_dataset(train_dataset, tokenizer)
 
   # make dataset for pytorch.
   RE_train_dataset = RE_Dataset(tokenized_train, train_label)
   # RE_dev_dataset = RE_Dataset(tokenized_dev, dev_label)
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-  # device = torch.device('cpu') 
-  print(device)
-  
-  # model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-  # model_config.num_labels = 30
-  # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config = model_config)
-  # model =  Model_BiLSTM(MODEL_NAME)
-  model =  Model_BiGRU(MODEL_NAME)
-  # model =  Model_FC(MODEL_NAME)
-  
+  model =  Model_BiGRU(MODEL_NAME)  
+  model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
   model.to(device)
-  
+ 
   # 사용한 option 외에도 다양한 option들이 있습니다.
   # https://huggingface.co/transformers/main_classes/trainer.html#trainingarguments 참고해주세요.
   training_args = TrainingArguments(
     output_dir='./results',          # output directory
-    save_strategy = 'epoch',
+    save_strategy='epoch',
     save_total_limit=1,              # number of total save model.
-    # save_steps=500,                 # model saving step.
     num_train_epochs=5,              # total number of training epochs
     learning_rate=3e-5,               # learning_rate
     per_device_train_batch_size=64,  # batch size per device during training
-    per_device_eval_batch_size=16,   # batch size for evaluation
-    # warmup_steps=500,                # number of warmup steps for learning rate scheduler
+    per_device_eval_batch_size=64,   # batch size for evaluation
     warmup_ratio = 0.1,
-    # weight_decay=0.01,               # strength of weight decay
-    # label_smoothing_factor=0.1,
-    # lr_scheduler_type = 'constant_with_warmup',
+    weight_decay=0.01,               # strength of weight decay
+    label_smoothing_factor=0.1,
     logging_dir='./logs',            # directory for storing logs
     logging_steps=100,              # log saving step.
     evaluation_strategy='epoch', # evaluation strategy to adopt during training
                                 # `no`: No evaluation during training.
                                 # `steps`: Evaluate every `eval_steps`.
                                 # `epoch`: Evaluate every end of epoch.
-    # eval_steps = 500,            # evaluation step.
     load_best_model_at_end = True,
     # report_to = 'wandb',
     # run_name = "Typerd entity marker(punct) to Query and Sentence"
   )
-  # trainer = Trainer(
-  #   model=model,                         # the instantiated 🤗 Transformers model to be trained
-  #   args=training_args,                  # training arguments, defined above
-  #   train_dataset=RE_train_dataset,         # training dataset
-  #   eval_dataset=RE_train_dataset,             # evaluation dataset
-  #   compute_metrics=compute_metrics         # define metrics function
-  # )
 
   trainer = CustomTrainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
@@ -240,13 +183,14 @@ def train():
 
   # train model
   trainer.train()
-  # model.save_pretrained('./best_model')
   torch.save(model.state_dict(), os.path.join('./best_model', 'pytorch_model.bin'))
 
 def main():
   train()
 
 if __name__ == '__main__':
-  # wandb.init(project="KLUE")
+  # seed_everything(42) 
   os.environ["WANDB_DISABLED"] = "true"
+  # wandb.init(project="KLUE")
+
   main()

@@ -22,89 +22,43 @@ def preprocessing_dataset(dataset):
   """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
   subject_entity = []
   object_entity = []
-  for i,j in zip(dataset['subject_entity'], dataset['object_entity']):
-    i = i[1:-1].split(',')[0].split(':')[1]
-    j = j[1:-1].split(',')[0].split(':')[1]
-
-    subject_entity.append(i)
-    object_entity.append(j)
-  out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':dataset['sentence'],'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
-  return out_dataset
-
-# Typed entity marker(punct) to Only Query
-def TEMP_preprocessing_dataset(dataset):
-  """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
-  subject_entity = []
-  object_entity = []
-  for i,j in zip(dataset['subject_entity'], dataset['object_entity']):
-    S_WORD = i[1:-1].split(", '")[0].split(':')[1][2:-1]
-    S_TYPE = i[1:-1].split(", '")[-1].split(':')[1][2:-1]    
-    S_TEMP = ' '.join(['@', '+', S_TYPE, '+', S_WORD, '@'])
-    subject_entity.append(S_TEMP)
-    
-    O_WORD = j[1:-1].split(", '")[0].split(':')[1][2:-1]
-    O_TYPE = j[1:-1].split(", '")[-1].split(':')[1][2:-1]    
-    O_TEMP = ' '.join(['#', '^', O_TYPE, '^', O_WORD, '#'])
-    object_entity.append(O_TEMP)
-
-  out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':dataset['sentence'],'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
-  return out_dataset
-
-# Typed entity marker(punct) to Query and Sentence
-def TEMP_preprocessing_dataset_with_sentence(dataset):
-  """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
-  subject_entity = []
-  object_entity = []
   sentence = []
-  for i,j,k in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence']):
-    S_WORD = i[1:-1].split(", '")[0].split(':')[1][2:-1]
-    S_TYPE = i[1:-1].split(", '")[-1].split(':')[1][2:-1]    
-    S_TEMP = ' '.join(['@', '+', S_TYPE, '+', S_WORD, '@'])
+  label = []
+  outlier = [32, 48, 170, 204, 206, 254, 300, 352, 532, 681, 709, 744, 787, 858, 879, 1050, 1059, 1062, 1065, 1141, 1156, 1167, 1258, 1343, 1348, 1349, 1443, 1454, 1600, 1613, 1662, 1731, 1746, 1763, 1823, 1933, 2149, 2214, 2220, 2282, 2384, 2390, 2433, 2518, 2544, 2595, 2713, 2719, 2731, 2852, 2929, 2964, 3156, 3174, 3187, 3212, 3215, 3221, 3274, 3346, 3393, 3407, 3445, 3455, 3587, 3720, 3856, 3993, 4044, 4077, 4091, 4129, 4137, 4160, 4205, 4304, 4324, 4422, 4463, 4568, 4608, 4713, 4727, 4741, 4818, 4901, 5054, 5116, 5160, 5174, 5175, 5244, 5279, 5281, 5317, 5322, 5383, 5418, 5463, 5466, 5571, 5585, 5648, 5650, 5818, 5856, 5884, 5888, 5928, 5995, 6055, 6072, 6244, 6299, 6479, 6545, 6748, 6858, 6895, 7102, 7234, 7321, 7414, 7477, 7573, 7752, 7979, 8041, 8046, 8066, 8113, 8197, 8226, 8281, 8351, 8374, 8400, 8405, 8453, 8491, 8502, 8520, 8554, 8560, 8674, 8706, 8801, 8854, 8865, 8886, 8936, 8953, 9054, 9081, 9114, 9144, 9154, 9156, 9228, 9276, 9282, 9324, 9327, 9386, 9439, 9462, 9477, 9527, 9570, 9855, 9947, 10039, 10149, 10205, 10392, 10443, 10483, 10505, 10508, 10531, 10615, 10619, 10624, 10637, 10693, 10814, 10894, 10907, 10929, 10999, 11010, 11112, 11171, 11192, 11219, 11531, 11652, 11689, 11708, 11718, 11732, 11740, 11783, 11900, 11923, 12021, 12089, 12106, 12115, 12262, 12344, 12354, 12361, 12384, 12422, 12449, 12451, 12569, 12750, 12990, 13007, 13026, 13054, 13131, 13180, 13204, 13284, 13367, 13381, 13453, 13465, 13576, 13602, 13617, 13642, 13713, 13754, 13757, 13860, 13863, 13877, 13922, 14074, 14342, 14345, 14553, 14601, 14672, 14674, 14724, 14753, 14764, 14833, 14892, 15011, 15183, 15189, 15202, 15257, 15260, 15327, 15354, 15369, 15533, 15542, 15606, 15706, 15812, 15819, 15840, 15846, 15889, 16006, 16097, 16122, 16171, 16225, 16245, 16275, 16397, 16436, 16480, 16718, 16727, 16751, 16930, 16942, 16960, 16961, 16989, 17050, 17083, 17099, 17142, 17252, 17273, 17328, 17361, 17709, 17777, 17781, 17844, 17886, 17902, 17986, 17995, 18006, 18027, 18073, 18081, 18130, 18136, 18201, 18213, 18217, 18225, 18422, 18467, 18510, 18539, 18543, 18643, 18699, 18709, 18732, 18767, 18796, 18813, 18848, 18864, 18949, 18954, 18973, 19004, 19018, 19025, 19030, 19105, 19138, 19236, 19313, 19341, 19377, 19430, 19464, 19509, 19578, 19641, 19662, 19791, 19994, 20011, 20014, 20039, 20220, 20273, 20300, 20321, 20331, 20406, 20445, 20504, 20551, 20612, 20679, 20680, 20690, 20716, 20851, 21096, 21202, 21272, 21410, 21422, 21423, 21605, 21662, 21680, 21686, 21696, 21709, 21763, 21805, 21830, 21840, 21851, 21938, 21967, 22118, 22204, 22261, 22277, 22307, 22334, 22410, 22441, 22488, 22534, 22540, 22575, 22617, 22750, 22763, 22871, 22936, 23045, 23056, 23061, 23079, 23124, 23282, 23418, 23485, 23487, 23502, 23686, 23727, 23771, 23785, 23800, 23882, 23913, 23918, 24030, 24147, 24181, 24231, 24239, 24264, 24309, 24375, 24433, 24439, 24442, 24505, 24716, 24772, 24784, 24937, 24940, 25014, 25121, 25149, 25165, 25176, 25204, 25389, 25411, 25414, 25422, 25431, 25436, 25482, 25497, 25552, 25673, 25819, 25859, 25941, 25964, 25995, 26124, 26154, 26274, 26373, 26415, 26428, 26516, 26604, 26626, 26681, 26732, 26866, 26919, 26942, 26971, 27006, 27052, 27143, 27181, 27205, 27258, 27304, 27329, 27521, 27543, 27587, 27712, 27783, 27911, 27938, 27948, 27953, 27963, 27991, 28024, 28043, 28214, 28313, 28331, 28375, 28407, 28442, 28469, 28490, 28499, 28508, 28799, 28849, 28883, 28895, 29038, 29058, 29091, 29162, 29231, 29312, 29392, 29400, 29485, 29531, 29559, 29593, 29676, 29728, 29746, 29868, 29874, 29928, 29995, 30091, 30102, 30115, 30257, 30261, 30374, 30386, 30436, 30477, 30515, 30544, 30722, 30787, 30855, 30906, 30934, 30954, 31024, 31038, 31089, 31152, 31157, 31210, 31279, 31373, 31423, 31462, 31475, 31480, 31580, 31831, 31883, 31953, 31957, 31960, 32148, 32170, 32210, 32213, 32300, 32351, 32400, 32465]
+  duplicate = [858, 7080, 20838, 6352]
+  mislabel = [25094, 10320, 277, 22258, 8364, 6749, 18458]
+  idx = -1
+  for i,j,k,n in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence'], dataset['label']):
+    idx += 1
+    if len(dataset) > 30000: # inference시에는 제거 X
+      if idx in outlier or idx in duplicate or idx in mislabel: continue
+    S_WORD = eval(i)['word']
+    S_TYPE = eval(i)['type'] 
+    S_TEMP = ' '.join(['@', '*', '['+S_TYPE+']', '*', S_WORD, '@'])
     subject_entity.append(S_TEMP)
     
-    O_WORD = j[1:-1].split(", '")[0].split(':')[1][2:-1]
-    O_TYPE = j[1:-1].split(", '")[-1].split(':')[1][2:-1]  
-    O_TEMP = ' '.join(['#', '^', O_TYPE, '^', O_WORD, '#'])
+    O_WORD = eval(j)['word']
+    O_TYPE = eval(j)['type']
+    O_TEMP = ' '.join(['#', '^', '['+O_TYPE+']', '^', O_WORD, '#'])
     object_entity.append(O_TEMP)
     
     sentence.append(k.replace(S_WORD, S_TEMP).replace(O_WORD, O_TEMP))
-    
-  out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':sentence, 'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
+    label.append(n)
+
+  out_dataset = pd.DataFrame({'id' : [i for i in range(len(label))], 'sentence':sentence, 'subject_entity':subject_entity,'object_entity':object_entity,'label':label})
   return out_dataset
 
 def load_data(dataset_dir):
   """ csv 파일을 경로에 맡게 불러 옵니다. """
   pd_dataset = pd.read_csv(dataset_dir)
-  # dataset = preprocessing_dataset(pd_dataset)
-  dataset = TEMP_preprocessing_dataset(pd_dataset)
-  # dataset = TEMP_preprocessing_dataset(pd_dataset)
+  dataset = preprocessing_dataset(pd_dataset)
   return dataset
 
 def tokenized_dataset(dataset, tokenizer):
   """ tokenizer에 따라 sentence를 tokenizing 합니다."""
   concat_entity = []
   for e01, e02 in zip(dataset['subject_entity'], dataset['object_entity']):
-    temp = ''
-    temp = e01 + '[SEP]' + e02
-    concat_entity.append(temp)
-   
-  tokenized_sentence = tokenizer(
-      concat_entity,
-      list(dataset['sentence']),
-      return_tensors="pt",
-      padding=True,
-      truncation=True,
-      max_length=256,
-      add_special_tokens=True
-      )
-  return tokenized_sentence
-
-def TEMP_tokenized_dataset(dataset, tokenizer):
-  """ tokenizer에 따라 sentence를 tokenizing 합니다."""
-  concat_entity = []
-  for e01, e02 in zip(dataset['subject_entity'], dataset['object_entity']):
-    temp = ''
-    temp = e01 + ' 과 ' + e02 + '의 관계'
+    temp = e01 + '과 ' + e02 + '의 관계' 
     concat_entity.append(temp)
   
   tokenized_sentence = tokenizer(
@@ -113,7 +67,7 @@ def TEMP_tokenized_dataset(dataset, tokenizer):
       return_tensors="pt",
       padding=True,
       truncation=True,
-      max_length=128,
+      max_length=160,
       add_special_tokens=True,
       return_token_type_ids = False
       )

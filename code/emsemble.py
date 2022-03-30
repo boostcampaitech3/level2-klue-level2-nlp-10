@@ -28,8 +28,8 @@ def load_output(output_dir):
   
   return probs
 
-def main():
-  K = 5
+def soft_voting():
+  K = 5 # emsemble할 model 개수
   outputs_probs = []
   for K_ in range(1, K + 1):
     output_dir = "./prediction/output (" + str(K_) + ")" + ".csv"
@@ -52,14 +52,10 @@ def main():
   pred_answer = num_to_label(pred_answer) # 숫자로 된 class를 원래 문자열 라벨로 변환.
   
   ## make csv file with predicted answer
-  #########################################################
-  # 아래 directory와 columns의 형태는 지켜주시기 바랍니다.
   output = pd.DataFrame({'id':[sample for sample in range(len(outputs_probs[0]))],'pred_label':pred_answer,'probs':output_prob,})
 
   output.to_csv('./prediction/softvoting.csv', index=False) # 최종적으로 완성된 예측한 라벨 csv 파일 형태로 저장.
-  #### 필수!! ##############################################
   print('---- Finish! ----')
 
 if __name__ == '__main__':
-  main()
-  
+  soft_voting()
