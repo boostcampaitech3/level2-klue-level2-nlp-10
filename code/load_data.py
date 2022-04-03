@@ -114,7 +114,7 @@ def preprocessing_dataset(dataset):
   idx = -1  
   for i,j,k,n in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence'], dataset['label']):
     idx += 1
-    if len(dataset) > 30000: # inference시에는 제거 X
+    if len(dataset) > 30000: # Train
       if idx in duplicate or idx in mislabel: continue
       S_WORD = eval(i)['word']    
       O_WORD = eval(j)['word']    
@@ -128,7 +128,7 @@ def preprocessing_dataset(dataset):
       sentence.append(k.replace(S_WORD, S_TEMP).replace(O_WORD, O_TEMP))
       label.append(LABEL)
 
-    else:
+    else: # Test
       S_WORD = eval(i)['word']
       S_TYPE = eval(i)['type'] 
       O_WORD = eval(j)['word']
