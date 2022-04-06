@@ -5,6 +5,7 @@ from df_edit import better_df
 from preprocess import Preprocess
 import torch
 
+from sklearn.model_selection import train_test_split
 
 class RE_Dataset(torch.utils.data.Dataset):
   """ Dataset 구성을 위한 class."""
@@ -20,7 +21,6 @@ class RE_Dataset(torch.utils.data.Dataset):
   def __len__(self):
     return len(self.labels)
 
-
 # Typed entity marker(punct) to Subject/Object Entity and Sentence
 def preprocessing_dataset_with_sentence(dataset : pd.DataFrame):
   """ Sentence 및 Subject/Object Entity에 Typed entity marker를 추가합니다.
@@ -31,6 +31,7 @@ def preprocessing_dataset_with_sentence(dataset : pd.DataFrame):
   Returns:
       DataFrame: Typed entity marker를 추가한 DataFrame
   """  
+
   """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
   subject_entity = []
   object_entity = []
@@ -49,7 +50,6 @@ def preprocessing_dataset_with_sentence(dataset : pd.DataFrame):
 
   out_dataset = pd.DataFrame({'id':dataset['id'], 'sentence':sentence, 'subject_entity':subject_entity,'object_entity':object_entity,'label':dataset['label'],})
   return out_dataset
-
 
 def load_data(dataset_dir : str):
   """
