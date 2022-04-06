@@ -83,6 +83,16 @@ class CustomTrainer(Trainer):
        
 
 
+
+def seed_everything(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
+
 def klue_re_micro_f1(preds, labels):
     """KLUE-RE micro f1 (except no_relation)"""
     label_list = ['no_relation', 'org:top_members/employees', 'org:members',
@@ -166,6 +176,7 @@ def train():
   # make dataset for pytorch.
   RE_train_dataset = RE_Dataset(tokenized_train, train_label)
 
+
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   
   model =  Model_BiLSTM(MODEL_NAME)
@@ -187,6 +198,7 @@ def train():
     per_device_eval_batch_size=64,   # batch size for evaluation
     fp16=True,
     warmup_ratio = 0.1,
+
     weight_decay=0.01,               # strength of weight decay
     label_smoothing_factor=0.1,
     lr_scheduler_type = 'cosine',
@@ -200,19 +212,22 @@ def train():
     report_to = 'wandb',
     # run name은 실험자명과 주요 변경사항을 기입합니다. 
     run_name = 'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=nll/seed=14'
+
   )
 
   trainer = CustomTrainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
     args=training_args,                  # training arguments, defined above
     train_dataset=RE_train_dataset,         # training dataset
-    eval_dataset=RE_train_dataset,             # evaluation dataset
-    compute_metrics=compute_metrics         # define metrics function
+    eval_dataset=RE_dev_dataset,             # evaluation dataset
+    compute_metrics=compute_metrics,         # define metrics function
+    callbacks = [EarlyStoppingCallback(early_stopping_patience=2)]
   )
 
 
   trainer.train()
   torch.save(model.state_dict(), os.path.join('./best_model', 'pytorch_model.bin'))
+
 
 def main():
   train()
@@ -222,5 +237,6 @@ if __name__ == '__main__':
   # run name은 실험자명과 주요 변경사항을 기입합니다. 
   wandb.run.name = 'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=nll/seed=14'
   seed_everything(14) 
+
   main()
 
