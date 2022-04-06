@@ -6,10 +6,10 @@ import torch
 import sklearn
 import numpy as np
 from sklearn.metrics import accuracy_score
-from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification, Trainer, TrainingArguments
+from transformers import AutoTokenizer, AutoConfig, Trainer, TrainingArguments
 from transformers import AutoModel
 from load_data import *
-import wandb
+# import wandb
 import torch.nn as nn
 import random
 from sadice import SelfAdjDiceLoss
@@ -26,6 +26,7 @@ def seed_everything(seed):
 
 # BiLSTM
 class Model_BiLSTM(nn.Module):
+
   def __init__(self, MODEL_NAME):
     super().__init__()
     self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
@@ -33,6 +34,7 @@ class Model_BiLSTM(nn.Module):
     self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
     self.hidden_dim = self.model_config.hidden_size
     self.lstm= nn.LSTM(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
+
     self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
   
   def forward(self, input_ids, attention_mask):
@@ -103,7 +105,6 @@ def klue_re_micro_f1(preds, labels):
 def klue_re_auprc(probs, labels):
     """KLUE-RE AUPRC (with no_relation)"""
     labels = np.eye(30)[labels]
-
     score = np.zeros((30,))
     for c in range(30):
         targets_c = labels.take([c], axis=1).ravel()
@@ -152,7 +153,8 @@ def train():
   # load model and tokenizer
   MODEL_NAME = "klue/roberta-large"
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-
+  added_token_num = tokenizer.add_special_tokens({"additional_special_tokens":["[LOC]", "[DAT]", "[NOH]", "[PER]", "[ORG]", "[POH]"]})
+  
   # load dataset
   train_dataset = load_data("/opt/ml/dataset/train/train.csv")
 
@@ -167,25 +169,23 @@ def train():
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   
   model =  Model_BiLSTM(MODEL_NAME)
+  model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
+  
 
-  
   model.to(device)
-  
+ 
   # 사용한 option 외에도 다양한 option들이 있습니다.
   # https://huggingface.co/transformers/main_classes/trainer.html#trainingarguments 참고해주세요.
   training_args = TrainingArguments(
     output_dir='./results',          # output directory
-    save_strategy = 'epoch',
+    save_strategy='epoch',
     save_total_limit=1,              # number of total save model.
-    # save_steps=500,                 # model saving step.
     num_train_epochs=5,              # total number of training epochs
     learning_rate=6e-5,               # learning_rate
     per_device_train_batch_size=32,  # batch size per device during training
     gradient_accumulation_steps=2,   # gradient accumulation factor
     per_device_eval_batch_size=64,   # batch size for evaluation
     fp16=True,
-    # optim='adafactor',
-    # warmup_steps=500,                # number of warmup steps for learning rate scheduler
     warmup_ratio = 0.1,
     weight_decay=0.01,               # strength of weight decay
     label_smoothing_factor=0.1,
@@ -196,7 +196,6 @@ def train():
                                 # `no`: No evaluation during training.
                                 # `steps`: Evaluate every `eval_steps`.
                                 # `epoch`: Evaluate every end of epoch.
-    # eval_steps = 500,            # evaluation step.
     load_best_model_at_end = True,
     report_to = 'wandb',
     # run name은 실험자명과 주요 변경사항을 기입합니다. 
@@ -213,7 +212,7 @@ def train():
 
 
   trainer.train()
-  torch.save(model.state_dict(), os.path.join('./best_model_14_CE', 'pytorch_model.bin'))
+  torch.save(model.state_dict(), os.path.join('./best_model', 'pytorch_model.bin'))
 
 def main():
   train()
@@ -224,3 +223,4 @@ if __name__ == '__main__':
   wandb.run.name = 'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=nll/seed=14'
   seed_everything(14) 
   main()
+
