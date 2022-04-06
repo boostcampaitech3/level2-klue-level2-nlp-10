@@ -57,8 +57,7 @@ def load_test_dataset(dataset_dir, tokenizer):
   test_dataset = load_data_test(dataset_dir)
   test_label = list(map(int,test_dataset['label'].values))
   # tokenizing dataset
-  # tokenized_test = tokenized_dataset(test_dataset, tokenizer)
-  tokenized_test = TEMP_tokenized_dataset(test_dataset, tokenizer)
+  tokenized_test = tokenized_dataset(test_dataset, tokenizer)
   return test_dataset['id'], tokenized_test, test_label
 
 def main(args):
@@ -72,14 +71,11 @@ def main(args):
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   ## load my model
-  # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
-  # model = Model_BiLSTM(MODEL_NAME)
-  model = Model_BiGRU(MODEL_NAME)
-  # model = Model_FC(MODEL_NAME)
-  state_dict = torch.load(os.path.join('./best_model', 'pytorch_model.bin'))
+
+  model = Model_BiLSTM(MODEL_NAME)
+  state_dict = torch.load(os.path.join('./best_model_14', 'pytorch_model.bin'))
   model.load_state_dict(state_dict)
   model.parameters
-  print(device)
   model.to(device)
 
   ## load test datset
@@ -96,14 +92,14 @@ def main(args):
   # 아래 directory와 columns의 형태는 지켜주시기 바랍니다.
   output = pd.DataFrame({'id':test_id,'pred_label':pred_answer,'probs':output_prob,})
 
-  output.to_csv('./prediction/submission.csv', index=False) # 최종적으로 완성된 예측한 라벨 csv 파일 형태로 저장.
+  output.to_csv('./prediction/output_test.csv', index=False) # 최종적으로 완성된 예측한 라벨 csv 파일 형태로 저장.
   #### 필수!! ##############################################
   print('---- Finish! ----')
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   
   # model dir
-  parser.add_argument('--model_dir', type=str, default="./best_model")
+  parser.add_argument('--model_dir', type=str, default="./best_model_14")
   args = parser.parse_args()
   main(args)
   

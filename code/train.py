@@ -12,6 +12,7 @@ from load_data import *
 import wandb
 import torch.nn as nn
 import random
+from sadice import SelfAdjDiceLoss
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -21,6 +22,7 @@ def seed_everything(seed):
     torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
     random.seed(seed)
+
 
 # BiLSTM
 class Model_BiLSTM(nn.Module):
@@ -34,35 +36,10 @@ class Model_BiLSTM(nn.Module):
     self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
   
   def forward(self, input_ids, attention_mask):
-    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state # (batch, max_len, hidden_dim)
-
-    hidden, (last_hidden, last_cell) = self.lstm(output)
-    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
-    # hidden : (batch, max_len, hidden_dim * 2)
-    # last_hidden : (2, batch, hidden_dim)
-    # last_cell : (2, batch, hidden_dim)
-    # output : (batch, hidden_dim * 2)
-
-    logits = self.fc(output) # (batch, num_labels)
-
-    return {'logits' : logits}
-
-# BiGRU
-class Model_BiGRU(nn.Module):
-  def __init__(self, MODEL_NAME):
-    super().__init__()
-    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-    self.model_config.num_labels = 30
-    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
-    self.hidden_dim = self.model_config.hidden_size
-    self.gru= nn.GRU(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
-    self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
-  
-  def forward(self, input_ids, attention_mask):
     output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
     # (batch, max_len, hidden_dim)
 
-    hidden, last_hidden = self.gru(output)
+    hidden, (last_hidden, last_cell) = self.lstm(output)
     output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
     # hidden : (batch, max_len, hidden_dim * 2)
     # last_hidden : (2, batch, hidden_dim)
@@ -73,27 +50,6 @@ class Model_BiGRU(nn.Module):
 
     return {'logits' : logits}
 
-# FC
-class Model_FC(nn.Module):
-  def __init__(self, MODEL_NAME):
-    super().__init__()
-    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-    self.model_config.num_labels = 30
-    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
-    self.hidden_dim = self.model_config.hidden_size
-    self.fc = nn.Linear(self.hidden_dim * 128, self.model_config.num_labels)
-    self.relu = nn.ReLU()
-    self.softmax = nn.Softmax(dim=1)
-  
-  def forward(self, input_ids, attention_mask):
-    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state # (batch, max_len, hidden_dim)
-    output = output.view(output.shape[0], -1) # (batch, max_len * hidden_dim)
-    output = self.fc(output) # (batch, num_labels)
-    output = self.relu(output)
-    logits = self.softmax(output)
-    
-    return {'logits' : logits}
-
 class CustomTrainer(Trainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -101,6 +57,7 @@ class CustomTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs= False):
         device= torch.device('cuda:0' if torch.cuda.is_available else 'cpu:0')
         labels= inputs.pop('labels')
+        # print(labels)
         # forward pass
         outputs= model(**inputs)
         
@@ -109,9 +66,19 @@ class CustomTrainer(Trainer):
             self._past= outputs[self.args.past_index]
             
         # compute custom loss (suppose one has 3 labels with different weights)
+
+        # 1) CE Loss
         custom_loss= torch.nn.CrossEntropyLoss().to(device)
         loss= custom_loss(outputs['logits'], labels)    
         return (loss, outputs) if return_outputs else loss
+        
+        # 2) Dice Loss
+        # criterion = SelfAdjDiceLoss()
+        # dice_loss = criterion(outputs['logits'], labels).to(device)
+        # return (dice_loss, outputs) if return_outputs else dice_loss
+
+
+       
 
 
 def klue_re_micro_f1(preds, labels):
@@ -132,6 +99,7 @@ def klue_re_micro_f1(preds, labels):
     label_indices.remove(no_relation_label_idx)
     return sklearn.metrics.f1_score(labels, preds, average="micro", labels=label_indices) * 100.0
 
+
 def klue_re_auprc(probs, labels):
     """KLUE-RE AUPRC (with no_relation)"""
     labels = np.eye(30)[labels]
@@ -144,6 +112,7 @@ def klue_re_auprc(probs, labels):
         score[c] = sklearn.metrics.auc(recall, precision)
     return np.average(score) * 100.0
 
+
 def compute_metrics(pred):
   """ validation을 위한 metrics function """
   labels = pred.label_ids
@@ -154,14 +123,22 @@ def compute_metrics(pred):
   f1 = klue_re_micro_f1(preds, labels)
   auprc = klue_re_auprc(probs, labels)
   acc = accuracy_score(labels, preds) # 리더보드 평가에는 포함되지 않습니다.
-  # wandb.log({'micro f1 score': f1})
   return {
       'micro f1 score': f1,
       'auprc' : auprc,
       'accuracy': acc,
   }
 
+
 def label_to_num(label):
+  """ 주어진 pickle 파일로 부터 label->num list를 불러와 train_dataset(DataFrame)의 label column의 값에 대응하는 숫자를 list에 담아 전달합니다.
+
+  Args:
+      label (DataFrame.values): train_dataset(DataFrame)의 label column의 값
+
+  Returns:
+      list: 대응하는 숫자
+  """  
   num_label = []
   with open('dict_label_to_num.pkl', 'rb') as f:
     dict_label_to_num = pickle.load(f)
@@ -171,37 +148,26 @@ def label_to_num(label):
   return num_label
 
 def train():
+
   # load model and tokenizer
-  # MODEL_NAME = "bert-base-uncased"
   MODEL_NAME = "klue/roberta-large"
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
   # load dataset
   train_dataset = load_data("/opt/ml/dataset/train/train.csv")
-  # dev_dataset = load_data("../dataset/train/dev.csv") # validation용 데이터는 따로 만드셔야 합니다.
 
   train_label = label_to_num(train_dataset['label'].values)
-  # dev_label = label_to_num(dev_dataset['label'].values)
 
   # tokenizing dataset
-  # tokenized_train = tokenized_dataset(train_dataset, tokenizer)
-  tokenized_train = TEMP_tokenized_dataset(train_dataset, tokenizer)
-  # tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
+  tokenized_train = tokenized_dataset(train_dataset, tokenizer)
 
   # make dataset for pytorch.
   RE_train_dataset = RE_Dataset(tokenized_train, train_label)
-  # RE_dev_dataset = RE_Dataset(tokenized_dev, dev_label)
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-  # device = torch.device('cpu') 
-  print(device)
   
-  # model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-  # model_config.num_labels = 30
-  # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config = model_config)
-  # model =  Model_BiLSTM(MODEL_NAME)
-  model =  Model_BiGRU(MODEL_NAME)
-  # model =  Model_FC(MODEL_NAME)
+  model =  Model_BiLSTM(MODEL_NAME)
+
   
   model.to(device)
   
@@ -213,14 +179,17 @@ def train():
     save_total_limit=1,              # number of total save model.
     # save_steps=500,                 # model saving step.
     num_train_epochs=5,              # total number of training epochs
-    learning_rate=3e-5,               # learning_rate
-    per_device_train_batch_size=64,  # batch size per device during training
+    learning_rate=6e-5,               # learning_rate
+    per_device_train_batch_size=32,  # batch size per device during training
+    gradient_accumulation_steps=2,   # gradient accumulation factor
     per_device_eval_batch_size=64,   # batch size for evaluation
+    fp16=True,
+    # optim='adafactor',
     # warmup_steps=500,                # number of warmup steps for learning rate scheduler
     warmup_ratio = 0.1,
-    # weight_decay=0.01,               # strength of weight decay
-    # label_smoothing_factor=0.1,
-    # lr_scheduler_type = 'constant_with_warmup',
+    weight_decay=0.01,               # strength of weight decay
+    label_smoothing_factor=0.1,
+    lr_scheduler_type = 'cosine',
     logging_dir='./logs',            # directory for storing logs
     logging_steps=100,              # log saving step.
     evaluation_strategy='epoch', # evaluation strategy to adopt during training
@@ -230,15 +199,9 @@ def train():
     # eval_steps = 500,            # evaluation step.
     load_best_model_at_end = True,
     report_to = 'wandb',
-    run_name = "EDA Experiment:2"
+    # run name은 실험자명과 주요 변경사항을 기입합니다. 
+    run_name = 'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=nll/seed=14'
   )
-  # trainer = Trainer(
-  #   model=model,                         # the instantiated 🤗 Transformers model to be trained
-  #   args=training_args,                  # training arguments, defined above
-  #   train_dataset=RE_train_dataset,         # training dataset
-  #   eval_dataset=RE_train_dataset,             # evaluation dataset
-  #   compute_metrics=compute_metrics         # define metrics function
-  # )
 
   trainer = CustomTrainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
@@ -248,17 +211,16 @@ def train():
     compute_metrics=compute_metrics         # define metrics function
   )
 
-  # train model
+
   trainer.train()
-  # model.save_pretrained('./best_model')
-  torch.save(model.state_dict(), os.path.join('./best_model', 'pytorch_model.bin'))
+  torch.save(model.state_dict(), os.path.join('./best_model_14_CE', 'pytorch_model.bin'))
 
 def main():
   train()
 
 if __name__ == '__main__':
   wandb.init(project="KLUE")
-  wandb.run.name = 'EDA Experiment:2'
-  # os.environ["WANDB_DISABLED"] = "true"
-  seed_everything(42) 
+  # run name은 실험자명과 주요 변경사항을 기입합니다. 
+  wandb.run.name = 'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=nll/seed=14'
+  seed_everything(14) 
   main()
