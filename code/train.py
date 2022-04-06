@@ -12,7 +12,9 @@ from load_data import *
 # import wandb
 import torch.nn as nn
 import random
-from sadice import SelfAdjDiceLoss
+
+# Dice loss 사용하기 위해선 pip insatll sadice 터미널로 실행!
+# from sadice import SelfAdjDiceLoss
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -219,9 +221,9 @@ def train():
     model=model,                         # the instantiated 🤗 Transformers model to be trained
     args=training_args,                  # training arguments, defined above
     train_dataset=RE_train_dataset,         # training dataset
-    eval_dataset=RE_dev_dataset,             # evaluation dataset
-    compute_metrics=compute_metrics,         # define metrics function
-    callbacks = [EarlyStoppingCallback(early_stopping_patience=2)]
+    eval_dataset=RE_train_dataset,             # evaluation dataset
+    compute_metrics=compute_metrics         # define metrics function
+    
   )
 
 
