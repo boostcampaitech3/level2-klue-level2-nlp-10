@@ -54,7 +54,7 @@ def load_data(dataset_dir : str):
   Train 용 dataframe 생성 함수
   1) csv 파일을 경로에 맞게 불러 옵니다. 
   2) dataframe을 개선하고 전처리 과정을 수행합니다.
-  3) type + 특수문자를 Sentence에 추가합니다.
+  3) type + 특수문자를 Subj/Obj Entity + Sentence에 추가합니다.
 
   Args:
       dataset_dir (file_dir): train data의 위치 (default : "/opt/ml/dataset/train/train.csv")
@@ -83,16 +83,16 @@ def load_data_test(dataset_dir : str):
   """
   inference용 dataframe 생성 함수
   1) csv 파일을 경로에 맞게 불러 옵니다. 
-  2) inference 할 때는 전처리 및 dataframe 개선을 하지 않습니다.
-  3) type + 특수문자를 Sentence에 추가합니다.
+  2) inference 할 때는 전처리를 하지 않습니다.
+  3) type + 특수문자를 Subj/Obj Entity + Sentence에 추가합니다.
 
   Returns:
       type : Pandas Dataframe
   """  
-  # inference 할 때는 전처리 및 dataframe 개선을 하지 않습니다.
+  # inference 할 때는 전처리를 하지 않습니다.
   pd_dataset = pd.read_csv(dataset_dir)
 
-  # dataframe 개선을 합니다. word, index, type을 풀어 각각 하나의 column으로 담습니다. 
+  # dataframe 개선을 합니다. word, index, type을 풀어 각각 하나의 column으로 담습니다. label_num은 추가하지 않습니다. 
   pd_dataset = better_df(pd_dataset,1)
   
   # 특수 문자+ type을 subj, obj entity + 문장에 추가합니다.

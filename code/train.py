@@ -9,7 +9,7 @@ from sklearn.metrics import accuracy_score
 from transformers import AutoTokenizer, AutoConfig, Trainer, TrainingArguments
 from transformers import AutoModel
 from load_data import *
-# import wandb
+import wandb
 import torch.nn as nn
 import random
 
@@ -213,7 +213,7 @@ def train():
     load_best_model_at_end = True,
     report_to = 'wandb',
     # run name은 실험자명과 주요 변경사항을 기입합니다. 
-    run_name = 'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=nll/seed=14'
+    run_name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
 
   )
 
@@ -226,19 +226,24 @@ def train():
     
   )
 
-
+  
   trainer.train()
-  torch.save(model.state_dict(), os.path.join('./best_model', 'pytorch_model.bin'))
-
+  
+  torch.save(model.state_dict(), os.path.join(f'./best_model_{seed_value}', 'pytorch_model.bin'))
+  del trainer
+  del model
+  torch.cuda.empty_cache()
 
 def main():
   train()
 
 if __name__ == '__main__':
   wandb.init(project="KLUE")
-  # run name은 실험자명과 주요 변경사항을 기입합니다. 
-  wandb.run.name = 'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=nll/seed=14'
-  seed_everything(14) 
+  # run name은 실험자명과 주요 변경사항을 기입합니다.
+  for seed_iter in range(2,6):
+    seed_value = 14*seed_iter
+    wandb.run.name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
+    seed_everything(seed_value) 
 
-  main()
+    main()
 
