@@ -41,6 +41,6 @@ class LabelSmoothingLoss(nn.Module):
 criterion = {'label_smoothing': LabelSmoothingLoss, 'focal_loss': FocalLoss, 'default' : torch.nn.CrossEntropyLoss()}
 
 ## 원하는 criterion loss 사용!
-def use_criterion(criterion_n, **kwargs):
+def use_criterion(criterion_n):
     choose_criterion=criterion[criterion_n]
-    return choose_criterion(**kwargs)
+    return choose_criterion

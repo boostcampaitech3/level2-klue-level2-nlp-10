@@ -74,8 +74,8 @@ class CustomTrainer(Trainer):
         # compute custom loss (suppose one has 3 labels with different weights)
 
         # custom loss func by args.criterion
-        custom_loss= use_criterion(args.criterion).to(device)
-        loss= custom_loss(outputs['logits'], labels)    
+        custom_loss = use_criterion(args.criterion).to(device)
+        loss = custom_loss(outputs['logits'], labels)    
         return (loss, outputs) if return_outputs else loss
         
 
@@ -243,9 +243,10 @@ if __name__ == '__main__':
   args = parser.parse_args()
   print(args)
 
-  wandb.init(project="KLUE")
+  
   # run name은 실험자명과 주요 변경사항을 기입합니다.
   for seed_iter in range(2,6):
+    wandb.init(project="KLUE")
     seed_value = 14*seed_iter
     wandb.run.name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
     seed_everything(seed_value) 
