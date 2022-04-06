@@ -12,6 +12,8 @@ from load_data import *
 import wandb
 import torch.nn as nn
 import random
+import argparse
+from loss import *
 
 # Dice loss 사용하기 위해선 pip insatll sadice 터미널로 실행!
 # from sadice import SelfAdjDiceLoss
@@ -71,15 +73,11 @@ class CustomTrainer(Trainer):
             
         # compute custom loss (suppose one has 3 labels with different weights)
 
-        # 1) CE Loss
-        custom_loss= torch.nn.CrossEntropyLoss().to(device)
+        # custom loss func by args.criterion
+        custom_loss= use_criterion(args.criterion).to(device)
         loss= custom_loss(outputs['logits'], labels)    
         return (loss, outputs) if return_outputs else loss
         
-        # 2) Dice Loss
-        # criterion = SelfAdjDiceLoss()
-        # dice_loss = criterion(outputs['logits'], labels).to(device)
-        # return (dice_loss, outputs) if return_outputs else dice_loss
 
 
        
@@ -238,6 +236,13 @@ def main():
   train()
 
 if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--criterion", type=str, default='default', help='criterion type: label_smoothing, focal_loss')
+
+  args = parser.parse_args()
+  print(args)
+
   wandb.init(project="KLUE")
   # run name은 실험자명과 주요 변경사항을 기입합니다.
   for seed_iter in range(2,6):
