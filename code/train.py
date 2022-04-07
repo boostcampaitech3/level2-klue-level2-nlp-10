@@ -28,6 +28,32 @@ def seed_everything(seed):
     random.seed(seed)
 
 
+# BiGRU -> FC
+class Model(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.gru= nn.GRU(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 4, batch_first= True, bidirectional= True)
+    self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    # (batch, max_len, hidden_dim)
+
+    hidden, last_hidden = self.gru(output)
+    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
+    # hidden : (batch, max_len, hidden_dim * 2)
+    # last_hidden : (2, batch, hidden_dim)
+    # output : (batch, hidden_dim * 2)
+
+    logits = self.fc(output)
+    # logits : (batch, num_labels)
+
+    return {'logits' : logits}
+
 # BiLSTM
 class Model_BiLSTM(nn.Module):
 
@@ -165,9 +191,10 @@ def train():
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   
-  model =  Model_BiLSTM(MODEL_NAME)
+  model =  Model(MODEL_NAME)
   model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
-  
+  state_dict = torch.load(os.path.join('./best_model_JH_70', 'pytorch_model.bin'))
+  model.load_state_dict(state_dict)
 
   model.to(device)
  
@@ -175,10 +202,10 @@ def train():
   # https://huggingface.co/transformers/main_classes/trainer.html#trainingarguments 참고해주세요.
   training_args = TrainingArguments(
     output_dir='./results',          # output directory
-    save_strategy='epoch',
+    save_strategy='no',
     save_total_limit=1,              # number of total save model.
     num_train_epochs=5,              # total number of training epochs
-    learning_rate=6e-5,               # learning_rate
+    learning_rate=3e-6,               # learning_rate
     per_device_train_batch_size=32,  # batch size per device during training
     gradient_accumulation_steps=2,   # gradient accumulation factor
     per_device_eval_batch_size=64,   # batch size for evaluation
@@ -187,17 +214,17 @@ def train():
 
     weight_decay=0.01,               # strength of weight decay
     label_smoothing_factor=0.1,
-    lr_scheduler_type = 'cosine',
+    # lr_scheduler_type = 'cosine',
     logging_dir='./logs',            # directory for storing logs
     logging_steps=100,              # log saving step.
-    evaluation_strategy='epoch', # evaluation strategy to adopt during training
+    evaluation_strategy='no', # evaluation strategy to adopt during training
                                 # `no`: No evaluation during training.
                                 # `steps`: Evaluate every `eval_steps`.
                                 # `epoch`: Evaluate every end of epoch.
     load_best_model_at_end = True,
     report_to = 'wandb',
     # run name은 실험자명과 주요 변경사항을 기입합니다. 
-    run_name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
+    run_name = f'kiwon-len=128/Acm=2/label_sm=0.1/lr=3e-6/loss=CE/BiGRU4layer/seed={seed_value}'
 
   )
 
@@ -205,7 +232,7 @@ def train():
     model=model,                         # the instantiated 🤗 Transformers model to be trained
     args=training_args,                  # training arguments, defined above
     train_dataset=RE_train_dataset,         # training dataset
-    eval_dataset=RE_train_dataset,             # evaluation dataset
+    # eval_dataset=RE_train_dataset,             # evaluation dataset
     compute_metrics=compute_metrics         # define metrics function
     
   )
@@ -213,7 +240,7 @@ def train():
   
   trainer.train()
   
-  torch.save(model.state_dict(), os.path.join(f'./best_model_{seed_value}', 'pytorch_model.bin'))
+  torch.save(model.state_dict(), os.path.join(f'./best_model_JH_{seed_value}', 'pytorch_model_2.bin'))
 
 def main():
   train()
@@ -230,9 +257,9 @@ if __name__ == '__main__':
   # run name은 실험자명과 주요 변경사항을 기입합니다.
 
   wandb.init(project="KLUE")
-  seed_iter = 1
+  seed_iter = 5
   seed_value = 14*seed_iter
-  wandb.run.name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
+  wandb.run.name = f'kiwon-len=128/Acm=2/label_sm=0.1/lr=3e-6/loss=CE/BiGRU4layer/seed={seed_value}'
   seed_everything(seed_value) 
 
   main()

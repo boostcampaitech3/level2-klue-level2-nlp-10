@@ -72,9 +72,9 @@ def main(args):
   ## load my model
 
 
-  model = Model_BiLSTM(MODEL_NAME)
+  model = Model(MODEL_NAME)
   model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
-  state_dict = torch.load(os.path.join('./best_model', 'pytorch_model.bin'))
+  state_dict = torch.load(os.path.join('./best_model_JH_70', 'pytorch_model.bin'))
   model.load_state_dict(state_dict)
   model.to(device)
   
@@ -92,14 +92,14 @@ def main(args):
 
 
   #### 필수!! ##############################################
-  output.to_csv('./prediction/submission.csv', index=False) # 최종적으로 완성된 예측한 라벨 csv 파일 형태로 저장.
+  output.to_csv('./prediction/output (5).csv', index=False) # 최종적으로 완성된 예측한 라벨 csv 파일 형태로 저장.
   print('---- Finish! ----')
   
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   
   # model dir
-  parser.add_argument('--model_dir', type=str, default="./best_model_14")
+  parser.add_argument('--model_dir', type=str, default="./best_model_JH_70")
   args = parser.parse_args()
   main(args)
   
