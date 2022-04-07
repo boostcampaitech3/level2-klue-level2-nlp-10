@@ -27,10 +27,34 @@ def seed_everything(seed):
     np.random.seed(seed)
     random.seed(seed)
 
+# BiGRU -> FC
+class Model(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.gru= nn.GRU(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 4, batch_first= True, bidirectional= True)
+    self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    # (batch, max_len, hidden_dim)
 
-# BiLSTM
-class Model_BiLSTM(nn.Module):
+    hidden, last_hidden = self.gru(output)
+    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
+    # hidden : (batch, max_len, hidden_dim * 2)
+    # last_hidden : (2, batch, hidden_dim)
+    # output : (batch, hidden_dim * 2)
 
+    logits = self.fc(output)
+    # logits : (batch, num_labels)
+
+    return {'logits' : logits}
+
+# BiLSTM -> FC
+class Model2(nn.Module):
   def __init__(self, MODEL_NAME):
     super().__init__()
     self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
@@ -38,7 +62,6 @@ class Model_BiLSTM(nn.Module):
     self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
     self.hidden_dim = self.model_config.hidden_size
     self.lstm= nn.LSTM(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
-
     self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
   
   def forward(self, input_ids, attention_mask):
@@ -54,6 +77,124 @@ class Model_BiLSTM(nn.Module):
     logits = self.fc(output)
     # logits : (batch, num_labels)
 
+    return {'logits' : logits}
+
+# FC
+class Model3(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.fc = nn.Linear(self.hidden_dim * 160, self.model_config.num_labels)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    # (batch, max_len, hidden_dim)
+    
+    output = output.view((output.shape[0], -1))
+    # (batch, max_len * hidden_dim)
+
+    logits = self.fc(output)
+    # logits : (batch, num_labels)
+
+    return {'logits' : logits}
+
+class MultiHeadedAttention(nn.Module):
+    def __init__(self,d_feat=128,n_head=5,actv=F.relu,USE_BIAS=True,dropout_p=0.1):
+        super(MultiHeadedAttention,self).__init__()
+        if (d_feat%n_head) != 0:
+            raise ValueError("d_feat(%d) should be divisible by b_head(%d)"%(d_feat,n_head)) 
+        self.d_feat = d_feat
+        self.n_head = n_head
+        self.d_head = self.d_feat // self.n_head
+        self.actv = actv
+        self.USE_BIAS = USE_BIAS
+        self.dropout_p = dropout_p # prob. of zeroed
+
+        self.lin_Q = nn.Linear(self.d_feat,self.d_feat,self.USE_BIAS)
+        self.lin_K = nn.Linear(self.d_feat,self.d_feat,self.USE_BIAS)
+        self.lin_V = nn.Linear(self.d_feat,self.d_feat,self.USE_BIAS)
+        self.lin_O = nn.Linear(self.d_feat,self.d_feat,self.USE_BIAS)
+
+        self.dropout = nn.Dropout(p=self.dropout_p)
+    
+    def forward(self,Q,K,V,mask=None):
+        n_batch = Q.shape[0]
+        Q_feat = self.lin_Q(Q) 
+        K_feat = self.lin_K(K) 
+        V_feat = self.lin_V(V)
+        # Q_feat: [n_batch, n_Q, d_feat]
+        # K_feat: [n_batch, n_K, d_feat]
+        # V_feat: [n_batch, n_V, d_feat]
+
+        # Multi-head split of Q, K, and V (d_feat = n_head*d_head)
+        Q_split = Q_feat.view(n_batch, -1, self.n_head, self.d_head).permute(0, 2, 1, 3)
+        K_split = K_feat.view(n_batch, -1, self.n_head, self.d_head).permute(0, 2, 1, 3)
+        V_split = V_feat.view(n_batch, -1, self.n_head, self.d_head).permute(0, 2, 1, 3)
+        # Q_split: [n_batch, n_head, n_Q, d_head]
+        # K_split: [n_batch, n_head, n_K, d_head]
+        # V_split: [n_batch, n_head, n_V, d_head]
+
+        # Multi-Headed Attention
+        d_K = K.size()[-1] # key dimension
+        scores = torch.matmul(Q_split, K_split.permute(0,1,3,2)) / np.sqrt(d_K)
+        if mask is not None:
+            scores = scores.masked_fill(mask==0,-1e9)
+        attention = torch.softmax(scores,dim=-1)
+        x_raw = torch.matmul(self.dropout(attention),V_split) # dropout is NOT mentioned in the paper
+        # attention: [n_batch, n_head, n_Q, n_K]
+        # x_raw: [n_batch, n_head, n_Q, d_head]
+
+        # Reshape x
+        x_rsh1 = x_raw.permute(0,2,1,3).contiguous()
+        # x_rsh1: [n_batch, n_Q, n_head, d_head]
+        x_rsh2 = x_rsh1.view(n_batch,-1,self.d_feat)
+        # x_rsh2: [n_batch, n_Q, d_feat]
+
+        # Linear
+        x = self.lin_O(x_rsh2)
+        # x: [n_batch, n_Q, d_feat]
+        out = {'Q_feat':Q_feat,'K_feat':K_feat,'V_feat':V_feat,
+               'Q_split':Q_split,'K_split':K_split,'V_split':V_split,
+               'scores':scores,'attention':attention,
+               'x_raw':x_raw,'x_rsh1':x_rsh1,'x_rsh2':x_rsh2,'x':x}
+        return out
+
+# BiGRU -> MHA -> BiGRU -> FC
+class Model4(nn.Module):
+  def __init__(self, MODEL_NAME):
+    super().__init__()
+    self.model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    self.model_config.num_labels = 30
+    self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
+    self.hidden_dim = self.model_config.hidden_size
+    self.gru1= nn.GRU(input_size= self.hidden_dim, hidden_size= self.hidden_dim // 2, num_layers= 1, batch_first= True, bidirectional= True)
+    self.gru2= nn.GRU(input_size= self.hidden_dim , hidden_size= self.hidden_dim // 2, num_layers= 1, batch_first= True, bidirectional= True)
+    self.mha = MultiHeadedAttention(d_feat=self.hidden_dim,n_head=4,actv=F.relu,USE_BIAS=False,dropout_p=0.1)
+    self.fc = nn.Linear(self.hidden_dim, self.model_config.num_labels)
+  
+  def forward(self, input_ids, attention_mask):
+    output = self.model(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    # (batch, max_len, hidden_dim)
+
+    hidden, last_hidden = self.gru1(output)
+    # hidden : (batch, max_len, hidden_dim)
+    # last_hidden : (2, batch, hidden_dim // 2)
+
+    output = self.mha(hidden, hidden, hidden, mask = None)['x']
+    # (batch, max_len, hidden_dim)
+
+    hidden, last_hidden = self.gru2(output)
+    # hidden : (batch, max_len, hidden_dim)
+    # last_hidden : (2, batch, hidden_dim // 2)
+
+    output = torch.cat((last_hidden[0], last_hidden[1]), dim=1)
+    # output : (batch, hidden_dim)
+    logits = self.fc(output)
+    # logits : (batch, num_labels)
+    
     return {'logits' : logits}
 
 class CustomTrainer(Trainer):
@@ -165,7 +306,7 @@ def train():
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   
-  model =  Model_BiLSTM(MODEL_NAME)
+  model =  Model(MODEL_NAME)
   model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
   
 
@@ -178,7 +319,7 @@ def train():
     save_strategy='epoch',
     save_total_limit=1,              # number of total save model.
     num_train_epochs=5,              # total number of training epochs
-    learning_rate=6e-5,               # learning_rate
+    learning_rate=3e-5,               # learning_rate
     per_device_train_batch_size=32,  # batch size per device during training
     gradient_accumulation_steps=2,   # gradient accumulation factor
     per_device_eval_batch_size=64,   # batch size for evaluation
@@ -187,7 +328,7 @@ def train():
 
     weight_decay=0.01,               # strength of weight decay
     label_smoothing_factor=0.1,
-    lr_scheduler_type = 'cosine',
+    # lr_scheduler_type = 'cosine',
     logging_dir='./logs',            # directory for storing logs
     logging_steps=100,              # log saving step.
     evaluation_strategy='epoch', # evaluation strategy to adopt during training
@@ -197,7 +338,7 @@ def train():
     load_best_model_at_end = True,
     report_to = 'wandb',
     # run name은 실험자명과 주요 변경사항을 기입합니다. 
-    run_name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
+    run_name = f'jeongho-len=128/Acm=2/label_sm=0.1/lr=3e-5/sch=cos/loss=CE/BiGRU4layer/seed={seed_value}'
 
   )
 
@@ -232,7 +373,7 @@ if __name__ == '__main__':
   wandb.init(project="KLUE")
   seed_iter = 1
   seed_value = 14*seed_iter
-  wandb.run.name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
+  wandb.run.name = f'jeongho-len=128/Acm=2/label_sm=0.1/lr=3e-5/sch=cos/loss=CE/BiGRU4layer/seed={seed_value}'
   seed_everything(seed_value) 
 
   main()
