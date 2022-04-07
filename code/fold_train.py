@@ -194,6 +194,8 @@ def train():
   # tokenizing dataset
   # tokenized_train = TEMP_tokenized_dataset(train_dataset, tokenizer)
   # tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
+
+  ### kfold 실행
   kfold = StratifiedKFold(n_splits = 10, random_state = seed_everything(42))
   for fold,(train_idx,val_idx) in enumerate(kfold.split(split_dataset, split_label)) :
     wandb_run = wandb.init(project = 'huggingface', name = f'KFOLD_{fold}_TEM_with focal_loss')
@@ -204,8 +206,8 @@ def train():
     train_label = label_to_num(train_dataset['label'].values)
     val_label = label_to_num(val_dataset['label'].values)
 
-    tokenized_train= TEMP_tokenized_dataset(train_dataset, tokenizer)
-    tokenized_val= TEMP_tokenized_dataset(val_dataset, tokenizer)
+    tokenized_train= tokenized_dataset(train_dataset, tokenizer)
+    tokenized_val= tokenized_dataset(val_dataset, tokenizer)
 
     trainset= RE_Dataset(tokenized_train, train_label)
     valset= RE_Dataset(tokenized_val, val_label)
