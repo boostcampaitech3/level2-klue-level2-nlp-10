@@ -79,20 +79,6 @@ class CustomTrainer(Trainer):
         return (loss, outputs) if return_outputs else loss
         
 
-
-       
-
-
-
-def seed_everything(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    np.random.seed(seed)
-    random.seed(seed)
-
 def klue_re_micro_f1(preds, labels):
     """KLUE-RE micro f1 (except no_relation)"""
     label_list = ['no_relation', 'org:top_members/employees', 'org:members',
@@ -228,9 +214,6 @@ def train():
   trainer.train()
   
   torch.save(model.state_dict(), os.path.join(f'./best_model_{seed_value}', 'pytorch_model.bin'))
-  del trainer
-  del model
-  torch.cuda.empty_cache()
 
 def main():
   train()
@@ -245,11 +228,12 @@ if __name__ == '__main__':
 
   
   # run name은 실험자명과 주요 변경사항을 기입합니다.
-  for seed_iter in range(2,6):
-    wandb.init(project="KLUE")
-    seed_value = 14*seed_iter
-    wandb.run.name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
-    seed_everything(seed_value) 
 
-    main()
+  wandb.init(project="KLUE")
+  seed_iter = 1
+  seed_value = 14*seed_iter
+  wandb.run.name = f'kiwon-len=256/Acm=2/label_sm=0.1/lr=6e-5/sch=cos/loss=CE/seed={seed_value}'
+  seed_everything(seed_value) 
+
+  main()
 
