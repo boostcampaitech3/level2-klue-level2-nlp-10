@@ -125,7 +125,7 @@ def tokenized_dataset(dataset : pd.DataFrame, tokenizer):
       return_tensors="pt",
       padding=True,
       truncation=True,
-      max_length=128,
+      max_length=160,
       add_special_tokens=True,
       return_token_type_ids = False
       )

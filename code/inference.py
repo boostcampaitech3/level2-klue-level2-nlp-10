@@ -72,9 +72,9 @@ def main(args):
   ## load my model
 
 
-  model = Model_BiLSTM(MODEL_NAME)
+  model = Model2(MODEL_NAME)
   model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
-  state_dict = torch.load(os.path.join('./best_model', 'pytorch_model.bin'))
+  state_dict = torch.load(os.path.join(f'./best_model_14', 'pytorch_model.bin'))
   model.load_state_dict(state_dict)
   model.to(device)
   

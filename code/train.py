@@ -9,7 +9,7 @@ from sklearn.metrics import accuracy_score
 from transformers import AutoTokenizer, AutoConfig, Trainer, TrainingArguments
 from transformers import AutoModel
 from load_data import *
-import wandb
+# import wandb
 import torch.nn as nn
 import random
 import argparse
@@ -35,7 +35,7 @@ class Model(nn.Module):
     self.model_config.num_labels = 30
     self.model = AutoModel.from_pretrained(MODEL_NAME, config = self.model_config)
     self.hidden_dim = self.model_config.hidden_size
-    self.gru= nn.GRU(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 4, batch_first= True, bidirectional= True)
+    self.gru= nn.GRU(input_size= self.hidden_dim, hidden_size= self.hidden_dim, num_layers= 1, batch_first= True, bidirectional= True)
     self.fc = nn.Linear(self.hidden_dim * 2, self.model_config.num_labels)
   
   def forward(self, input_ids, attention_mask):
@@ -306,9 +306,10 @@ def train():
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   
-  model =  Model(MODEL_NAME)
+  model =  Model2(MODEL_NAME)
   model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
-  
+  state_dict = torch.load(os.path.join(f'./best_model_14', 'pytorch_model.bin'))
+  model.load_state_dict(state_dict)
 
   model.to(device)
  
@@ -319,7 +320,7 @@ def train():
     save_strategy='epoch',
     save_total_limit=1,              # number of total save model.
     num_train_epochs=5,              # total number of training epochs
-    learning_rate=3e-5,               # learning_rate
+    learning_rate=3e-6,               # learning_rate
     per_device_train_batch_size=32,  # batch size per device during training
     gradient_accumulation_steps=2,   # gradient accumulation factor
     per_device_eval_batch_size=64,   # batch size for evaluation
@@ -336,9 +337,9 @@ def train():
                                 # `steps`: Evaluate every `eval_steps`.
                                 # `epoch`: Evaluate every end of epoch.
     load_best_model_at_end = True,
-    report_to = 'wandb',
+    # report_to = 'wandb',
     # run name은 실험자명과 주요 변경사항을 기입합니다. 
-    run_name = f'jeongho-len=128/Acm=2/label_sm=0.1/lr=3e-5/sch=cos/loss=CE/BiGRU4layer/seed={seed_value}'
+    # run_name = f'jeongho-len=128/Acm=2/label_sm=0.1/lr=3e-5/sch=cos/loss=CE/BiGRU4layer/seed={seed_value}'
 
   )
 
@@ -370,11 +371,12 @@ if __name__ == '__main__':
   
   # run name은 실험자명과 주요 변경사항을 기입합니다.
 
-  wandb.init(project="KLUE")
+  # wandb.init(project="KLUE")
   seed_iter = 1
   seed_value = 14*seed_iter
-  wandb.run.name = f'jeongho-len=128/Acm=2/label_sm=0.1/lr=3e-5/sch=cos/loss=CE/BiGRU4layer/seed={seed_value}'
+  # wandb.run.name = f'jeongho-len=128/Acm=2/label_sm=0.1/lr=3e-5/sch=cos/loss=CE/BiGRU4layer/seed={seed_value}'
   seed_everything(seed_value) 
-
+  os.environ["WANDB_DISABLED"] = "true"
+  
   main()
 
