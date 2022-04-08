@@ -191,9 +191,9 @@ def train():
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   
-  model =  Model(MODEL_NAME)
+  model =  Model_BiLSTM(MODEL_NAME)
   model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
-  state_dict = torch.load(os.path.join('./best_model_JH_70', 'pytorch_model.bin'))
+  state_dict = torch.load(os.path.join('./best_model_JH_70', 'pytorch_model'))
   model.load_state_dict(state_dict)
 
   model.to(device)
@@ -206,8 +206,8 @@ def train():
     save_total_limit=1,              # number of total save model.
     num_train_epochs=5,              # total number of training epochs
     learning_rate=3e-6,               # learning_rate
-    per_device_train_batch_size=32,  # batch size per device during training
-    gradient_accumulation_steps=2,   # gradient accumulation factor
+    per_device_train_batch_size=64,  # batch size per device during training
+    #gradient_accumulation_steps=2,   # gradient accumulation factor
     per_device_eval_batch_size=64,   # batch size for evaluation
     fp16=True,
     warmup_ratio = 0.1,
@@ -224,7 +224,7 @@ def train():
     load_best_model_at_end = True,
     report_to = 'wandb',
     # run name은 실험자명과 주요 변경사항을 기입합니다. 
-    run_name = f'kiwon-len=128/Acm=2/label_sm=0.1/lr=3e-6/loss=CE/BiGRU4layer/seed={seed_value}'
+    run_name = f'NH-len=128/Acm=2/label_sm=0.1/lr=3e-6/loss=CE/BiGRU4layer/seed={seed_value}'
 
   )
 
@@ -240,7 +240,7 @@ def train():
   
   trainer.train()
   
-  torch.save(model.state_dict(), os.path.join(f'./best_model_JH_{seed_value}', 'pytorch_model_2.bin'))
+  torch.save(model.state_dict(), os.path.join(f'./best_model_JH_{seed_value}', 'pytorch_model.bin'))
 
 def main():
   train()
@@ -259,7 +259,7 @@ if __name__ == '__main__':
   wandb.init(project="KLUE")
   seed_iter = 5
   seed_value = 14*seed_iter
-  wandb.run.name = f'kiwon-len=128/Acm=2/label_sm=0.1/lr=3e-6/loss=CE/BiGRU4layer/seed={seed_value}'
+  wandb.run.name = f'NH-len=128/Acm=2/label_sm=0.1/lr=3e-6/loss=CE/BiGRU4layer/seed={seed_value}'
   seed_everything(seed_value) 
 
   main()
