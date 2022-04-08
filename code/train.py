@@ -63,15 +63,16 @@ def compute_metrics(pred):
   f1 = klue_re_micro_f1(preds, labels)
   auprc = klue_re_auprc(probs, labels)
   acc = accuracy_score(labels, preds) # 리더보드 평가에는 포함되지 않습니다.
+
   wandb.log({'micro f1 score': f1})
   wandb.log({'accuracy': acc})
 
   # 모델 예측값 분석을 위한 wandb table
-  # columns=["preds", "labels"]
-  # record_table = wandb.Table(columns=columns)
-  # for pre,lab in zip(preds,labels):
-  #   record_table.add_data(pre,lab)
-  # wandb.log({"predictions" : record_table})
+  columns=["preds", "labels"]
+  record_table = wandb.Table(columns=columns)
+  for pre,lab in zip(preds,labels):
+    record_table.add_data(pre,lab)
+  wandb.log({"predictions" : record_table})
 
   return {
       'micro f1 score': f1,
@@ -107,8 +108,30 @@ class CustomTrainer(Trainer):
         loss= custom_loss(outputs['logits'], labels)    
         return (loss, outputs) if return_outputs else loss
 
+class StaticTrainer(Trainer):
+  def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+  def compute_loss(self, model, inputs, return_outputs= False):
+      device= torch.device('cuda:0' if torch.cuda.is_available else 'cpu:0')
+      labels= inputs.pop('labels')
+      # forward pass
+      outputs= model(**inputs)
+      
+      # 인덱스에 맞춰서 과거 ouput을 다 저장
+      if self.args.past_index >=0:
+          self._past= outputs[self.args.past_index]
+          
+      # compute custom loss (suppose one has 3 labels with different weights)
+      custom_loss= torch.nn.CrossEntropyLoss().to(device)
+      loss= custom_loss(outputs['logits'], labels)
+      # print(outputs['logits'])
+      # print(labels)
+      model.update_static_metrics(outputs['logits'], labels)
+      return (loss, outputs) if return_outputs else loss
+
 def train():
-  wandb.init(project="optuna", entity="boostcamp-nlp10-level2")
+  wandb.init(project="optuna", entity="boostcamp-nlp10-level2", name ="klue/roberta-large_basic")
   # wandb.init(project="KLUE", entity="boostcamp-nlp10-level2", name = "kiwon exp1 model=ainize/klue-bert-base-re lr = 5e-5 batch_size = 64 max_len = 256")
 
   # load model and tokenizer
@@ -126,30 +149,37 @@ def train():
   # dev_label = label_to_num(dev_dataset['label'].values)
 
   ''' train_test_split(class 비율(ratio)을 train / validation에 유지) '''
-  train_dataset, dev_dataset, train_label, dev_label = train_test_split(dataset, label, test_size=0.2, shuffle=True, stratify=label, random_state=34)
+  # train_dataset, dev_dataset, train_label, dev_label = train_test_split(dataset, label, test_size=0.2, shuffle=True, stratify=label, random_state=34)
 
   # tokenizing dataset
-  tokenized_train = tokenized_dataset(train_dataset, tokenizer)
-  tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
+  tokenized_train = tokenized_dataset(dataset, tokenizer)
+  # tokenized_train = tokenized_dataset(train_dataset, tokenizer)
+  # tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
   # tokenized_train = tokenized_dataset(train_dataset, tokenizer)
   # tokenized_dev = tokenized_dataset(dev_dataset, tokenizer)
 
   # make dataset for pytorch.
-  RE_train_dataset = RE_Dataset(tokenized_train, train_label)
-  RE_dev_dataset = RE_Dataset(tokenized_dev, dev_label)
+  RE_train_dataset = RE_Dataset(tokenized_train, label)
+  # RE_dev_dataset = RE_Dataset(tokenized_dev, dev_label)
 
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
   print(device)
 
   # setting model hyperparameter
-  # model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-  # model_config.num_labels = 30
+  model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+  model_config.num_labels = 30
 
-  # model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config)
-  NUM_LAYERS = 2
+  model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config)
+  NUM_LAYERS = 1
+  epochs = 5
+  batch_size = 32
+  batchs_per_epoch = len(RE_train_dataset)//batch_size
+  # model = ModelStatic(MODEL_NAME,device,batchs_per_epoch)
   # model = Model_BiGRU(MODEL_NAME,NUM_LAYERS)
-  model = Model_BiLSTM(MODEL_NAME,NUM_LAYERS)
-  model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
+  # model = Model_BiLSTM(MODEL_NAME,NUM_LAYERS)
+  # model = Static_Model_BiLSTM(MODEL_NAME,NUM_LAYERS,device,batchs_per_epoch)
+  # model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
+  model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
   # print(model.config)
   # model.parameters
   model.to(device)
@@ -161,14 +191,15 @@ def train():
     save_total_limit=5,              # number of total save model.
     save_strategy='epoch', # 'epoch',
     save_steps=500,                 # Number of model saving step. if logging_strategy="steps".
-    num_train_epochs=10,              # total number of training epochs
-    learning_rate=5e-3,               # learning_rate
-    per_device_train_batch_size=29,  # batch size per device during training
-    per_device_eval_batch_size=29,   # batch size for evaluation
+    num_train_epochs=epochs,              # total number of training epochs
+    learning_rate=6e-5,               # learning_rate
+    per_device_train_batch_size=batch_size,  # batch size per device during training
+    per_device_eval_batch_size=64,   # batch size for evaluation
     warmup_ratio=0.1,
     # warmup_steps=500,                # number of warmup steps for learning rate scheduler
     weight_decay=0.01,               # strength of weight decay
     label_smoothing_factor=0.1,
+    lr_scheduler_type = 'cosine',
     logging_dir='./logs',            # directory for storing logs
     logging_steps=500,              # log saving step.
     evaluation_strategy='epoch', # evaluation strategy to adopt during training
@@ -176,32 +207,34 @@ def train():
                                 # `steps`: Evaluate every `eval_steps`.
                                 # `epoch`: Evaluate every end of epoch.
     # eval_steps = 500,            # evaluation step.
+    metric_for_best_model = 'micro f1 score',
     load_best_model_at_end = True,
     fp16=True,
     report_to="wandb",  # enable logging to W&B
-    # run_name="bert-base-high-lr"
+    # run_name="klue/roberta-large_basic"
   )
-  # trainer = Trainer(
-  #   model=model,                         # the instantiated 🤗 Transformers model to be trained
-  #   args=training_args,                  # training arguments, defined above
-  #   train_dataset=RE_train_dataset,      # training dataset
-  #   eval_dataset=RE_dev_dataset,       # evaluation dataset
-  #   compute_metrics=compute_metrics,         # define metrics function
-    # callbacks = [EarlyStoppingCallback(early_stopping_patience=2)]
-  # )
-
-  trainer = CustomTrainer(
+  trainer = Trainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
     args=training_args,                  # training arguments, defined above
     train_dataset=RE_train_dataset,      # training dataset
-    eval_dataset=RE_dev_dataset,         # evaluation dataset
-    compute_metrics=compute_metrics,      # define metrics function
-    callbacks = [EarlyStoppingCallback(early_stopping_patience=2)]
+    eval_dataset=RE_train_dataset,       # evaluation dataset
+    compute_metrics=compute_metrics,         # define metrics function
+    # callbacks = [EarlyStoppingCallback(early_stopping_patience=2)]
   )
+
+  # trainer = StaticTrainer(
+  #   model=model,                         # the instantiated 🤗 Transformers model to be trained
+  #   args=training_args,                  # training arguments, defined above
+  #   train_dataset=RE_train_dataset,      # training dataset
+  #   eval_dataset=RE_train_dataset,         # evaluation dataset
+  #   compute_metrics=compute_metrics,      # define metrics function
+  #   callbacks = [EarlyStoppingCallback(early_stopping_patience=3)]
+  # )
 
   # train model
   trainer.train()
   model.save_pretrained('./best_model')
+  # torch.save(model.state_dict(), os.path.join('./best_model', 'pytorch_model.bin'))
 
 def main():
   train()

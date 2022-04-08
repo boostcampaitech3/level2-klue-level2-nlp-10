@@ -84,12 +84,12 @@ def TEMP_preprocessing_dataset(dataset):
 
     S_WORD = eval(sub_ent)["word"]
     S_TYPE = eval(sub_ent)["type"]
-    S_TEMP = ' '.join(['@', '*[', S_TYPE, ']*', S_WORD, '@'])
+    S_TEMP = ' '.join(['@', '*','[', S_TYPE, ']','*', S_WORD, '@'])
     subject_entity.append(S_TEMP)
     
     O_WORD = eval(obj_ent)["word"]
     O_TYPE = eval(obj_ent)["type"]    
-    O_TEMP = ' '.join(['#', '^[', O_TYPE, ']^', O_WORD, '#'])
+    O_TEMP = ' '.join(['#', '^','[', O_TYPE, ']','^', O_WORD, '#'])
     object_entity.append(O_TEMP)
 
     # 타입수정

@@ -9,6 +9,7 @@ import pickle as pickle
 import numpy as np
 import argparse
 from tqdm import tqdm
+from model import *
 
 def inference(model, tokenized_sent, device):
   """
@@ -24,9 +25,10 @@ def inference(model, tokenized_sent, device):
       outputs = model(
           input_ids=data['input_ids'].to(device),
           attention_mask=data['attention_mask'].to(device),
-          token_type_ids=data['token_type_ids'].to(device)
+          # token_type_ids=data['token_type_ids'].to(device)
           )
-    logits = outputs[0]
+    logits = outputs['logits']
+    # logits = outputs[0]
     prob = F.softmax(logits, dim=-1).detach().cpu().numpy()
     logits = logits.detach().cpu().numpy()
     result = np.argmax(logits, axis=-1)
@@ -64,14 +66,24 @@ def main(args):
     주어진 dataset csv 파일과 같은 형태일 경우 inference 가능한 코드입니다.
   """
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+  MODEL_NAME = "klue/roberta-large"
+
   # load tokenizer
-  Tokenizer_NAME = "klue/roberta-large" # "klue/bert-base"
-  tokenizer = AutoTokenizer.from_pretrained(Tokenizer_NAME)
+  # Tokenizer_NAME = "klue/roberta-large" # "klue/bert-base"
+  tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+  added_token_num = tokenizer.add_special_tokens({"additional_special_tokens":["[LOC]", "[DAT]", "[NOH]", "[PER]", "[ORG]", "[POH]"]})
 
   ## load my model
-  MODEL_NAME = args.model_dir # model dir.
-  model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)
-  model.parameters
+  # model = Model_BiGRU(MODEL_NAME)
+  # batch_size = 32
+  batchs_per_epoch = 811
+  model = Static_Model_BiLSTM(MODEL_NAME,1,device,batchs_per_epoch)
+  model.model.resize_token_embeddings(tokenizer.vocab_size + added_token_num)
+  state_dict = torch.load(os.path.join('./best_model', 'pytorch_model.bin'))
+  model.load_state_dict(state_dict)
+  # MODEL_NAME = args.model_dir # model dir.
+  # model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)
+  # model.parameters
   model.to(device)
 
   ## load test datset
