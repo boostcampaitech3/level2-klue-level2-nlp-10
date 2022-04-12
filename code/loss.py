@@ -38,9 +38,9 @@ class LabelSmoothingLoss(nn.Module):
             true_dist.scatter_(1, target.data.unsqueeze(1), self.confidence)
         return torch.mean(torch.sum(-true_dist * pred, dim=self.dim))
 
-criterion = {'label_smoothing': LabelSmoothingLoss, 'focal_loss': FocalLoss, 'default' : torch.nn.CrossEntropyLoss()}
+criterion = {'label_smoothing': LabelSmoothingLoss, 'focal_loss': FocalLoss, 'default' : torch.nn.CrossEntropyLoss}
 
 ## 원하는 criterion loss 사용!
-def use_criterion(criterion_n):
+def use_criterion(criterion_n, **kwargs):
     choose_criterion=criterion[criterion_n]
-    return choose_criterion
+    return choose_criterion(**kwargs)
