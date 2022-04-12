@@ -29,7 +29,7 @@ def load_output(output_dir):
   return probs
 
 def soft_voting():
-  K = 5 # emsemble할 model 개수
+  K = 5 # ensemble할 model 개수
   outputs_probs = []
   for K_ in range(1, K + 1):
     output_dir = "./prediction/output (" + str(K_) + ")" + ".csv"
