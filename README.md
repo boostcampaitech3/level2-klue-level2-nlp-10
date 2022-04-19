@@ -1,3 +1,8 @@
+[NLP] 문장 내 개체간 관계 추출 대회 WrapUP 리포트 : [KLUE_NLP_팀 리포트(10조).pdf](https://github.com/boostcampaitech3/level2-klue-level2-nlp-10/files/8513550/KLUE_NLP_.10.pdf)
+
+
+
+
 # 문장 내 개체간 관계 추출
 
 - train.csv: 총 32470개
