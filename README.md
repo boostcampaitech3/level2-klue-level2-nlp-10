@@ -1,7 +1,13 @@
 [NLP] 문장 내 개체간 관계 추출 대회 WrapUP 리포트 : [KLUE_NLP_팀 리포트(10조).pdf](https://github.com/boostcampaitech3/level2-klue-level2-nlp-10/files/8513550/KLUE_NLP_.10.pdf)
 
+# 👋 팀원 소개
+### Members
+|김남현|민원식|전태양|정기원|주정호|최지민|
+|:-:|:-:|:-:|:-:|:-:|:-:|
+|<img src='https://user-images.githubusercontent.com/73579424/164642575-4273ba4f-f291-4f44-b37b-856ecb8df450.png' height=80 width=80px></img>|<img src='https://user-images.githubusercontent.com/73579424/164642795-b5413071-8b14-458d-8d57-a2e32e72f7f9.png' height=80 width=80px></img>|<img src='https://user-images.githubusercontent.com/73579424/164642916-2ba2c870-9773-44c3-9acd-b3ac46d77d2a.png' height=80 width=80px></img>|<img src='https://user-images.githubusercontent.com/73579424/164643061-599b9409-dc21-4f7a-8c72-b5d5dbfe9fab.jpg' height=80 width=80px></img>|<img src='https://user-images.githubusercontent.com/73579424/164643280-b0981ca3-528a-4c68-9331-b8f7a1cbe414.jpg' height=80 width=80px></img>|<img src='https://user-images.githubusercontent.com/73579424/164643383-cf02b20e-07b7-4f50-bb79-e3d1cf5db084.png' height=80 width=80px></img>|
+|[Github](https://github.com/NHRWV)|[Github](https://github.com/wertat)|[Github](https://github.com/JEONSUN)|[Github](https://github.com/greenare)|[Github](https://github.com/jujeongho0)|[Github](https://github.com/timmyeos)|
 
-
+<br>
 
 # 문장 내 개체간 관계 추출
 
