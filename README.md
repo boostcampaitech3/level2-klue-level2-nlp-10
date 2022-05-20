@@ -1,6 +1,8 @@
 ## 📋 Report  
 [NLP] 문장 내 개체간 관계 추출 대회 WrapUP 리포트(PDF 파일 다운로드) : [KLUE_NLP_팀 리포트(10조).pdf](https://github.com/boostcampaitech3/level2-klue-level2-nlp-10/files/8513550/KLUE_NLP_.10.pdf)
 
+</br>
+
 ## 💯 Feedback
 <details markdown="1"> 
 <summary> <b>WrapUP 리포트 피드백 접기/펼치기</b> </summary>
@@ -34,6 +36,7 @@ Level1 대회에서는 협업하는 측면에서 아쉬움이 있었던 캠퍼�
 
 </details>
 
+</br>
 
 ## 👋 팀원 소개
 ### Members
