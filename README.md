@@ -1,3 +1,11 @@
+## KLUE - RE(Relation Extraction)
+
+문장의 단어(Entity)에 대한 속성과 관계(30가지)를 예측하는 인공지능 만들기
+
+문장, 단어에 대한 정보를 통해 문장 속에서 단어 사이의 관계를 추론하는 모델을 학습시켜서, 모델이 단어들의 속성과 관계를 파악하며 개념을 학습할 수 있게 만드는 것이 목표.
+
+
+
 ## 📋 Report  
 [NLP] 문장 내 개체간 관계 추출 대회 WrapUP 리포트(PDF 파일 다운로드) : [KLUE_NLP_팀 리포트(10조).pdf](https://github.com/boostcampaitech3/level2-klue-level2-nlp-10/files/8513550/KLUE_NLP_.10.pdf)
 
